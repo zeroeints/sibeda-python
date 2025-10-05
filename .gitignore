@@ -1,1 +1,33 @@
-".venv" 
+# Python environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Env files / secrets
+.env
+.env.*
+
+# IDE / editor
+.vscode/
+.idea/
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+
+# OS files
+Thumbs.db
+*.DS_Store
+
+# Coverage / test
+.pytest_cache/
+.coverage*
+htmlcov/
+
+# Logs
+*.log
