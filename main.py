@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 import model.models as models
 from routers import users as users_router, auth as auth_router, dinas as dinas_router
-from routers import vehicle as vehicle_router, wallet as wallet_router, report as report_router
+from routers import vehicle as vehicle_router, wallet as wallet_router, report as report_router, vehicle_type as vehicle_type_router
 from database.database import SessionLocal, engine
 from contextlib import asynccontextmanager
-from middleware import RequestLoggingMiddleware, add_exception_handlers
+from middleware import RequestLoggingMiddleware, LanguagePrefixMiddleware, add_exception_handlers
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,6 +16,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="SIBEDA API", version="0.1.0", lifespan=lifespan)
 
 # Register middleware
+app.add_middleware(LanguagePrefixMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 
 # Register global exception handlers
@@ -28,6 +29,7 @@ app.include_router(dinas_router.router)
 app.include_router(vehicle_router.router)
 app.include_router(wallet_router.router)
 app.include_router(report_router.router)
+app.include_router(vehicle_type_router.router)
 
 def get_db():
     db = SessionLocal()

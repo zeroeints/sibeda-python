@@ -4,7 +4,6 @@ from typing import Dict
 # Katalog pesan multibahasa.
 # Key konvensi snake_case.
 # Tambah bahasa baru dengan menambahkan kunci top-level (misal 'jp').
-# ...existing code...
 _MESSAGES: Dict[str, Dict[str, str]] = {
     "id": {
         "login_success": "Login berhasil",
@@ -20,6 +19,13 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
         "report_create_success": "Laporan berhasil dibuat",
         "report_update_success": "Laporan berhasil diperbarui",
         "report_delete_success": "Laporan berhasil dihapus",
+        "vehicle_type_create_success": "Tipe kendaraan berhasil dibuat",
+        "vehicle_type_update_success": "Tipe kendaraan berhasil diperbarui",
+        "vehicle_type_delete_success": "Tipe kendaraan berhasil dihapus",
+        "otp_sent": "Kode OTP telah dikirim",
+        "otp_invalid": "Kode OTP tidak valid",
+        "otp_expired": "Kode OTP kedaluwarsa",
+        "password_reset_success": "Password berhasil direset",
         "create_success": "Data berhasil dibuat",
         "update_success": "Data berhasil diperbarui",
         "delete_success": "Data berhasil dihapus",
@@ -40,6 +46,13 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
         "report_create_success": "Report created successfully",
         "report_update_success": "Report updated successfully",
         "report_delete_success": "Report deleted successfully",
+        "vehicle_type_create_success": "Vehicle type created successfully",
+        "vehicle_type_update_success": "Vehicle type updated successfully",
+        "vehicle_type_delete_success": "Vehicle type deleted successfully",
+        "otp_sent": "OTP code has been sent",
+        "otp_invalid": "Invalid OTP code",
+        "otp_expired": "OTP code expired",
+        "password_reset_success": "Password reset successfully",
         "create_success": "Created successfully",
         "update_success": "Updated successfully",
         "delete_success": "Deleted successfully",
@@ -60,6 +73,13 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
         "report_create_success": "レポートを作成しました",
         "report_update_success": "レポートを更新しました",
         "report_delete_success": "レポートを削除しました",
+        "vehicle_type_create_success": "車両タイプを作成しました",
+        "vehicle_type_update_success": "車両タイプを更新しました",
+        "vehicle_type_delete_success": "車両タイプを削除しました",
+        "otp_sent": "OTPコードを送信しました",
+        "otp_invalid": "無効なOTPコードです",
+        "otp_expired": "OTPコードの有効期限が切れています",
+        "password_reset_success": "パスワードをリセットしました",
         "create_success": "作成に成功しました",
         "update_success": "更新に成功しました",
         "delete_success": "削除に成功しました",
@@ -77,17 +97,77 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
         "vehicle_create_success": "车辆创建成功",
         "vehicle_delete_success": "车辆删除成功",
         "wallet_delete_success": "钱包删除成功",
-    "report_create_success": "报告创建成功",
-    "report_update_success": "报告更新成功",
-    "report_delete_success": "报告删除成功",
+        "report_create_success": "报告创建成功",
+        "report_update_success": "报告更新成功",
+        "report_delete_success": "报告删除成功",
+        "vehicle_type_create_success": "车辆类型创建成功",
+        "vehicle_type_update_success": "车辆类型更新成功",
+        "vehicle_type_delete_success": "车辆类型删除成功",
+        "otp_sent": "OTP验证码已发送",
+        "otp_invalid": "OTP验证码无效",
+        "otp_expired": "OTP验证码已过期",
+        "password_reset_success": "密码重置成功",
         "create_success": "创建成功",
         "update_success": "更新成功",
         "delete_success": "删除成功",
         "not_found": "数据未找到",
         "duplicate_entry": "数据已存在",
     },
+    "fr": {
+        "login_success": "Connexion réussie",
+        "invalid_credentials": "NIP ou mot de passe incorrect",
+        "not_authenticated": "Non authentifié",
+        "permission_denied": "Accès refusé",
+        "validation_error": "Erreur de validation",
+        "internal_error": "Erreur interne du serveur",
+        "user_create_success": "Utilisateur créé avec succès",
+        "vehicle_create_success": "Véhicule créé avec succès",
+        "vehicle_delete_success": "Véhicule supprimé avec succès",
+        "wallet_delete_success": "Portefeuille supprimé avec succès",
+        "report_create_success": "Rapport créé avec succès",
+        "report_update_success": "Rapport mis à jour avec succès",
+        "report_delete_success": "Rapport supprimé avec succès",
+        "vehicle_type_create_success": "Type de véhicule créé avec succès",
+        "vehicle_type_update_success": "Type de véhicule mis à jour avec succès",
+        "vehicle_type_delete_success": "Type de véhicule supprimé avec succès",
+        "otp_sent": "Code OTP envoyé",
+        "otp_invalid": "Code OTP invalide",
+        "otp_expired": "Code OTP expiré",
+        "password_reset_success": "Mot de passe réinitialisé avec succès",
+        "create_success": "Créé avec succès",
+        "update_success": "Mis à jour avec succès",
+        "delete_success": "Supprimé avec succès",
+        "not_found": "Données introuvables",
+        "duplicate_entry": "Entrée en double",
+    },
+    "ko": {
+        "login_success": "로그인 성공",
+        "invalid_credentials": "NIP 또는 비밀번호가 올바르지 않습니다",
+        "not_authenticated": "인증되지 않았습니다",
+        "permission_denied": "접근 권한이 없습니다",
+        "validation_error": "검증 오류",
+        "internal_error": "서버 내부 오류",
+        "user_create_success": "사용자가 성공적으로 생성되었습니다",
+        "vehicle_create_success": "차량이 성공적으로 생성되었습니다",
+        "vehicle_delete_success": "차량이 성공적으로 삭제되었습니다",
+        "wallet_delete_success": "지갑이 성공적으로 삭제되었습니다",
+        "report_create_success": "보고서가 성공적으로 생성되었습니다",
+        "report_update_success": "보고서가 성공적으로 업데이트되었습니다",
+        "report_delete_success": "보고서가 성공적으로 삭제되었습니다",
+        "vehicle_type_create_success": "차량 유형이 성공적으로 생성되었습니다",
+        "vehicle_type_update_success": "차량 유형이 성공적으로 업데이트되었습니다",
+        "vehicle_type_delete_success": "차량 유형이 성공적으로 삭제되었습니다",
+        "otp_sent": "OTP 코드가 전송되었습니다",
+        "otp_invalid": "잘못된 OTP 코드입니다",
+        "otp_expired": "OTP 코드가 만료되었습니다",
+        "password_reset_success": "비밀번호가 성공적으로 재설정되었습니다",
+        "create_success": "성공적으로 생성되었습니다",
+        "update_success": "성공적으로 업데이트되었습니다",
+        "delete_success": "성공적으로 삭제되었습니다",
+        "not_found": "데이터를 찾을 수 없습니다",
+        "duplicate_entry": "중복된 데이터",
+    },
 }
-# ...existing code...
 
 DEFAULT_LANG = "id"
 
@@ -109,3 +189,9 @@ def get_message(key: str, lang: str | None = None) -> str:
 
 def available_languages() -> list[str]:
     return list(_MESSAGES.keys())
+
+
+def is_supported_lang(lang: str | None) -> bool:
+    if not lang:
+        return False
+    return lang.lower() in _MESSAGES

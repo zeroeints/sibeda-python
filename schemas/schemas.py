@@ -100,10 +100,10 @@ class DinasListResponse(BaseModel):
     message: str
     data: list[DinasResponse]
 
-class vehicleTypeBase(BaseModel):
+class VehicleTypeBase(BaseModel):
     Nama: str
 
-class VehicleTypeResponse(vehicleTypeBase):
+class VehicleTypeResponse(VehicleTypeBase):
     ID: int
     class Config:
         from_attributes = True
@@ -178,3 +178,20 @@ class ReportResponse(ReportBase):
 
     class Config:
         from_attributes = True
+
+# ------------------- Password Reset / OTP Schemas -------------------
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class VerifyOTPRequest(BaseModel):
+    email: str
+    otp: str
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+class OTPVerifyResponse(BaseModel):
+    valid: bool
+    reason: str | None = None

@@ -12,6 +12,8 @@ from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.exceptions import RequestValidationError
 from config import get_settings
 from utils.responses import error_payload, detect_lang  # type: ignore
+from i18n.messages import is_supported_lang, normalize_lang
+from starlette.middleware.base import RequestResponseEndpoint
 
 settings = get_settings()
 from starlette.responses import Response
@@ -61,6 +63,40 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             }
             print(json.dumps(error_record))
             raise
+
+
+class LanguagePrefixMiddleware(BaseHTTPMiddleware):
+    """Middleware untuk mendukung prefix bahasa di path: /en/..., /id/..., /ja/... dll.
+
+    Mekanisme:
+    - Cek segmen pertama path
+    - Jika bahasa didukung, simpan di request.state.lang
+    - Strip segmen bahasa sebelum diteruskan ke router FastAPI
+    - Jika hanya prefix bahasa (misal '/en') redirect ke '/en/' agar konsisten
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:  # type: ignore[override]
+        original_path = request.scope.get("path", "")
+        if not isinstance(original_path, str) or len(original_path) < 4:  # minimal '/en'
+            return await call_next(request)
+        # Pisah segmen
+        # path selalu diawali '/', jadi split akan hasilkan pertama kosong
+        segments = original_path.split('/')
+        # ['', 'en', 'login'] -> kandidat bahasa di index 1
+        candidate = segments[1] if len(segments) > 1 else None
+        if candidate and is_supported_lang(candidate.lower()):
+            # Normalisasi
+            lang_norm = normalize_lang(candidate.lower())
+            request.state.lang = lang_norm
+            # Bangun ulang path tanpa segmen bahasa
+            remainder_segments = segments[2:]  # sisakan setelah kode bahasa
+            new_path = '/' + '/'.join([s for s in remainder_segments if s])
+            if new_path == '/':
+                # jika user akses '/en' atau '/en/' arahkan ke root tapi lang terset
+                request.scope['path'] = '/'  # root
+            else:
+                request.scope['path'] = new_path
+        return await call_next(request)
 
 
 async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
