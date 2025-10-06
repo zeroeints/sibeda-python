@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum as SAEnum,
     UniqueConstraint,
     func,
+   
 )
 from sqlalchemy.orm import relationship
 from database.database import Base
@@ -216,3 +217,4 @@ class Report(Base):
 
     user = relationship("User", back_populates="reports")
     vehicle = relationship("Vehicle", back_populates="reports")
+

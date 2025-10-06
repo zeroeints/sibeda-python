@@ -32,6 +32,10 @@ class UserCreate(UserBase):
     Password: str
     DinasID: int | None = None
 
+class LoginJSON(BaseModel):
+    NIP: str
+    Password: str
+
 class UserResponse(UserBase):
     ID: int
     Role: RoleEnum
@@ -132,3 +136,45 @@ class VehicleResponse(BaseModel):
 
 class Message(BaseModel):
     detail: str
+
+# ------------------- Report Schemas -------------------
+class ReportBase(BaseModel):
+    KodeUnik: str
+    UserID: int
+    VehicleID: int
+    AmountRupiah: float
+    AmountLiter: float
+    Description: str | None = None
+    Latitude: float | None = None
+    Longitude: float | None = None
+    VehiclePhysicalPhotoPath: str | None = None
+    OdometerPhotoPath: str | None = None
+    InvoicePhotoPath: str | None = None
+    MyPertaminaPhotoPath: str | None = None
+    Odometer: int | None = None
+
+class ReportCreate(ReportBase):
+    pass
+
+class ReportUpdate(BaseModel):
+    # semua optional agar partial update bisa dilakukan (PUT/POST semantics kept simple)
+    KodeUnik: str | None = None
+    UserID: int | None = None
+    VehicleID: int | None = None
+    AmountRupiah: float | None = None
+    AmountLiter: float | None = None
+    Description: str | None = None
+    Latitude: float | None = None
+    Longitude: float | None = None
+    VehiclePhysicalPhotoPath: str | None = None
+    OdometerPhotoPath: str | None = None
+    InvoicePhotoPath: str | None = None
+    MyPertaminaPhotoPath: str | None = None
+    Odometer: int | None = None
+
+class ReportResponse(ReportBase):
+    ID: int
+    Timestamp: str | None = None  # serialized ISO datetime
+
+    class Config:
+        from_attributes = True

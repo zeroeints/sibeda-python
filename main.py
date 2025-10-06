@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import model.models as models
 from routers import users as users_router, auth as auth_router, dinas as dinas_router
-from routers import vehicle as vehicle_router, wallet as wallet_router
+from routers import vehicle as vehicle_router, wallet as wallet_router, report as report_router
 from database.database import SessionLocal, engine
 from contextlib import asynccontextmanager
 from middleware import RequestLoggingMiddleware, add_exception_handlers
@@ -27,6 +27,7 @@ app.include_router(users_router.router)
 app.include_router(dinas_router.router)
 app.include_router(vehicle_router.router)
 app.include_router(wallet_router.router)
+app.include_router(report_router.router)
 
 def get_db():
     db = SessionLocal()

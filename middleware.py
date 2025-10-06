@@ -11,6 +11,7 @@ from starlette.types import ASGIApp
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.exceptions import RequestValidationError
 from config import get_settings
+from utils.responses import error_payload, detect_lang  # type: ignore
 
 settings = get_settings()
 from starlette.responses import Response
@@ -64,11 +65,26 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
     request_id = getattr(request.state, "request_id", None)
-    body: Dict[str, Any] = {
-        "success": False,
-        "code": exc.status_code,
-        "message": exc.detail,
+    lang = detect_lang(request)
+    detail = exc.detail
+    detail_key_map = {
+        "Not authenticated": "not_authenticated",
+        "Tidak bisa validasi token": "not_authenticated",
+        "NIP atau password salah": "invalid_credentials",
+        "Validation error": "validation_error",
+        "Data tidak valid": "validation_error",
     }
+    key = detail_key_map.get(str(detail))
+
+    body: Dict[str, Any]  # anotasi eksplisit agar Pylance tahu tipe
+    if key:
+        body = error_payload(exc.status_code, key, lang)
+    else:
+        body = {
+            "success": False,
+            "code": exc.status_code,
+            "message": str(detail),
+        }
     if request_id:
         body["request_id"] = request_id
     resp = JSONResponse(status_code=exc.status_code, content=body, headers=exc.headers)
@@ -79,11 +95,8 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
 
 async def unhandled_exception_handler(request: Request, exc: Exception):
     request_id = getattr(request.state, "request_id", None)
-    body: Dict[str, Any] = {
-        "success": False,
-        "code": 500,
-        "message": "Internal server error",
-    }
+    lang = detect_lang(request)
+    body = error_payload(500, "internal_error", lang)
     if request_id:
         body["request_id"] = request_id
     resp = JSONResponse(status_code=500, content=body)
@@ -94,12 +107,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     request_id = getattr(request.state, "request_id", None)
-    body: Dict[str, Any] = {
-        "success": False,
-        "code": 422,
-        "message": "Validation error",
-        "details": exc.errors(),
-    }
+    lang = detect_lang(request)
+    body = error_payload(422, "validation_error", lang, extra={"details": exc.errors()})
     if request_id:
         body["request_id"] = request_id
     return JSONResponse(status_code=422, content=body)
