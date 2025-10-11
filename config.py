@@ -15,6 +15,13 @@ class Settings(BaseModel):
     access_token_expire_minutes: int
     log_level: str
     request_id_header: str = "X-Request-ID"
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_tls: bool = True
+    mail_from: str | None = None
+    mail_from_name: str | None = None
 
     @staticmethod
     def load() -> "Settings":
@@ -27,6 +34,13 @@ class Settings(BaseModel):
             access_token_expire_minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
             request_id_header=os.getenv("REQUEST_ID_HEADER", "X-Request-ID"),
+            smtp_host=os.getenv("SMTP_HOST"),
+            smtp_port=int(os.getenv("SMTP_PORT", "587")) if os.getenv("SMTP_HOST") else None,
+            smtp_user=os.getenv("SMTP_USER"),
+            smtp_password=os.getenv("SMTP_PASSWORD"),
+            smtp_tls=os.getenv("SMTP_TLS", "true").lower() == "true",
+            mail_from=os.getenv("MAIL_FROM"),
+            mail_from_name=os.getenv("MAIL_FROM_NAME"),
         )
 
 @lru_cache

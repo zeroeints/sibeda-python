@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 from typing import Generic, TypeVar
 from pydantic.generics import GenericModel
@@ -23,14 +23,29 @@ class VehicleStatusEnum(str, Enum):
     Nonactive = "Nonactive"
 
 class UserBase(BaseModel):
-    NIP: str
+    NIP: str = Field(..., min_length=18, max_length=50, description="Nomor Induk Pegawai minimal 18 karakter")
     NamaLengkap: str
     Email: str
     NoTelepon: str | None = None
 
+    @field_validator("NIP")
+    @classmethod
+    def nip_strip(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 18:
+            raise ValueError("NIP minimal 18 karakter")
+        return v
+
 class UserCreate(UserBase):
-    Password: str
-    DinasID: int | None = None
+    Password: str = Field(..., min_length=8, max_length=255, description="Password minimal 8 karakter")
+
+    @field_validator("Password")
+    @classmethod
+    def password_strip(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 8:
+            raise ValueError("Password minimal 8 karakter")
+        return v
 
 class LoginJSON(BaseModel):
     NIP: str
@@ -39,6 +54,7 @@ class LoginJSON(BaseModel):
 class UserResponse(UserBase):
     ID: int
     Role: RoleEnum
+    isVerified: bool | None = None  # tambahkan agar pydantic bisa serialize kolom baru
 
     class Config:
         from_attributes = True 
@@ -55,11 +71,13 @@ class TokenClaims(BaseModel):
     sub: str
     ID: int | None = None
     NIP: str | None = None
-    Role: str | None = None
+    Role: list[str] | None = None
     NamaLengkap: str | None = None
     Email: str | None = None
     NoTelepon: str | None = None
     DinasID: int | None = None
+    Dinas: dict[str, int | str | None] | None = None
+    isVerified: bool | None = None
     exp: int | None = None  # epoch seconds
 
 class TokenVerifyData(BaseModel):
@@ -114,7 +132,7 @@ class VehicleCreate(BaseModel):
     VehicleTypeID: int
     KapasitasMesin: int | None = None
     Odometer: int | None = None
-    Status: VehicleStatusEnum | None = None  # opsional (default DB: Active)
+    Status: VehicleStatusEnum | None = None  
     JenisBensin: str | None = None
     Merek: str | None = None
     FotoFisik: str | None = None
@@ -195,3 +213,13 @@ class ResetPasswordRequest(BaseModel):
 class OTPVerifyResponse(BaseModel):
     valid: bool
     reason: str | None = None
+
+# ------------------- QR Schemas -------------------
+class QRAssignRequest(BaseModel):
+    NIP: str
+    UniqueCode: str
+    DinasID: int
+
+class QRGetResponse(BaseModel):
+    code: str | None = None
+    expiresAt: str | None = None

@@ -31,6 +31,14 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
         "delete_success": "Data berhasil dihapus",
         "not_found": "Data tidak ditemukan",
         "duplicate_entry": "Data sudah terdaftar",
+        # QR flows
+        "qr_ready": "Kode QR siap digunakan",
+        "user_already_has_dinas": "Pengguna sudah memiliki Dinas",
+        "user_not_found": "Pengguna tidak ditemukan",
+        "dinas_not_found": "Dinas tidak ditemukan",
+        "qr_invalid": "Kode QR tidak valid",
+        "qr_expired": "Kode QR kedaluwarsa",
+        "dinas_assigned": "Dinas berhasil ditetapkan",
     },
     "en": {
         "login_success": "Login successful",
@@ -58,6 +66,14 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
         "delete_success": "Deleted successfully",
         "not_found": "Data not found",
         "duplicate_entry": "Duplicate entry",
+        # QR flows
+        "qr_ready": "QR code is ready",
+        "user_already_has_dinas": "User already has a Dinas",
+        "user_not_found": "User not found",
+        "dinas_not_found": "Dinas not found",
+        "qr_invalid": "Invalid QR code",
+        "qr_expired": "QR code expired",
+        "dinas_assigned": "Dinas assigned successfully",
     },
     "ja": {
         "login_success": "ログイン成功",
@@ -85,6 +101,14 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
         "delete_success": "削除に成功しました",
         "not_found": "データが見つかりません",
         "duplicate_entry": "重複したデータです",
+        # QR flows
+        "qr_ready": "QRコードの準備ができました",
+        "user_already_has_dinas": "ユーザーはすでにDinasが設定されています",
+        "user_not_found": "ユーザーが見つかりません",
+        "dinas_not_found": "Dinasが見つかりません",
+        "qr_invalid": "無効なQRコードです",
+        "qr_expired": "QRコードの有効期限が切れています",
+        "dinas_assigned": "Dinasが割り当てられました",
     },
     "zh": {
         "login_success": "登录成功",
@@ -112,6 +136,14 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
         "delete_success": "删除成功",
         "not_found": "数据未找到",
         "duplicate_entry": "数据已存在",
+        # QR flows
+        "qr_ready": "二维码已就绪",
+        "user_already_has_dinas": "用户已拥有 Dinas",
+        "user_not_found": "未找到用户",
+        "dinas_not_found": "未找到 Dinas",
+        "qr_invalid": "无效的二维码",
+        "qr_expired": "二维码已过期",
+        "dinas_assigned": "Dinas 分配成功",
     },
     "fr": {
         "login_success": "Connexion réussie",
@@ -139,6 +171,14 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
         "delete_success": "Supprimé avec succès",
         "not_found": "Données introuvables",
         "duplicate_entry": "Entrée en double",
+        # QR flows
+        "qr_ready": "Le code QR est prêt",
+        "user_already_has_dinas": "L'utilisateur a déjà un Dinas",
+        "user_not_found": "Utilisateur introuvable",
+        "dinas_not_found": "Dinas introuvable",
+        "qr_invalid": "Code QR invalide",
+        "qr_expired": "Code QR expiré",
+        "dinas_assigned": "Dinas attribué avec succès",
     },
     "ko": {
         "login_success": "로그인 성공",
@@ -166,6 +206,14 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
         "delete_success": "성공적으로 삭제되었습니다",
         "not_found": "데이터를 찾을 수 없습니다",
         "duplicate_entry": "중복된 데이터",
+        # QR flows
+        "qr_ready": "QR 코드가 준비되었습니다",
+        "user_already_has_dinas": "사용자는 이미 Dinas가 있습니다",
+        "user_not_found": "사용자를 찾을 수 없습니다",
+        "dinas_not_found": "Dinas를 찾을 수 없습니다",
+        "qr_invalid": "유효하지 않은 QR 코드입니다",
+        "qr_expired": "QR 코드가 만료되었습니다",
+        "dinas_assigned": "Dinas가 성공적으로 할당되었습니다",
     },
 }
 

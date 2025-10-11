@@ -7,11 +7,23 @@ import controller.auth as auth
 import schemas.schemas as schemas
 from database.database import SessionLocal
 from i18n.messages import get_message, normalize_lang
-from utils.otp import create_password_reset_code, verify_password_reset_code, consume_password_reset_code
+from utils.otp import (
+    create_password_reset_code,
+    verify_password_reset_code,
+    consume_password_reset_code,
+    verify_account_verification_code,
+    consume_account_verification_code,
+    create_account_verification_code,
+)
 from utils.responses import detect_lang
 from model import models
+from config import get_settings, Settings
 
 router = APIRouter(tags=["Auth"])
+
+# Settings & typed constants (hindari Unknown type di Pylance)
+_settings: Settings = get_settings()
+ACCESS_TOKEN_EXPIRE_MINUTES: int = int(_settings.access_token_expire_minutes)
 
 def get_db():
     db = SessionLocal()
@@ -44,26 +56,39 @@ class OAuth2PasswordRequestFormWithLang(OAuth2PasswordRequestForm):
 
 @router.post("/login", response_model=schemas.SuccessResponse[schemas.Token])
 def login(request: Request, form_data: OAuth2PasswordRequestFormWithLang = Depends(), db: Session = Depends(get_db)) -> schemas.SuccessResponse[schemas.Token]:
-    # Deteksi bahasa: path/query/header (middleware) lalu fallback ke form lang bila masih default
     lang = detect_lang(request)
-    if lang == "id" and form_data.lang and form_data.lang != "id":  # fallback only if user explicitly set different form lang
+    if lang == "id" and form_data.lang and form_data.lang != "id":  
         lang = normalize_lang(form_data.lang)
     user = auth.authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(status_code=401, detail=get_message("invalid_credentials", lang))
+    if not getattr(user, "isVerified", False):
+        # Jangan beritahu terlalu detail agar aman, tetapi bisa gunakan pesan khusus
+        raise HTTPException(status_code=403, detail="account_not_verified")
     role = user.Role.value if hasattr(user.Role, "value") else user.Role
+    role_str = str(role)
+    roles_list = [role_str]
+    # build Dinas object
+    dinas_id = getattr(user, "DinasID", None)
+    dinas_rel = getattr(user, "dinas", None)
+    dinas_name = getattr(dinas_rel, "Nama", None) if dinas_rel is not None else None
+    dinas_obj: Dict[str, Any] | None = {"DinasID": dinas_id, "Nama": dinas_name} if dinas_id is not None else None
     claims: Dict[str, Any] = {
         "sub": user.NIP,
         "ID": user.ID,
         "NIP": user.NIP,
-        "Role": role,
+    # Role as array only
+    "Role": roles_list,
         "NamaLengkap": user.NamaLengkap,
         "Email": user.Email,
         "NoTelepon": user.NoTelepon,
-        "DinasID": user.DinasID,
+        # legacy flat id and new structured object
+        "DinasID": dinas_id,
+        "Dinas": dinas_obj,
+        "isVerified": getattr(user, "isVerified", None),
         "Lang": lang,
     }
-    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(data=claims, expires_delta=access_token_expires)
     token = schemas.Token(access_token=access_token)
     return schemas.SuccessResponse[schemas.Token](data=token, message=get_message("login_success", lang))
@@ -79,10 +104,8 @@ def verify_token(authorization: str | None = Header(default=None), check_user: b
         return schemas.SuccessResponse[schemas.TokenVerifyData](data=data)
     token = parts[1]
     from jose import jwt, JWTError
-    from config import get_settings
-    settings = get_settings()
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+        payload = jwt.decode(token, _settings.secret_key, algorithms=["HS256"])
         claims = schemas.TokenClaims(**payload)
         # optional DB check
         if check_user:
@@ -105,24 +128,34 @@ def token(request: Request, form_data: OAuth2PasswordRequestFormWithLang = Depen
     user = auth.authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(status_code=401, detail=get_message("invalid_credentials", lang))
+    if not getattr(user, "isVerified", False):
+        raise HTTPException(status_code=403, detail="account_not_verified")
     role = user.Role.value if hasattr(user.Role, "value") else user.Role
+    role_str = str(role)
+    roles_list = [role_str]
+    dinas_id = getattr(user, "DinasID", None)
+    dinas_rel = getattr(user, "dinas", None)
+    dinas_name = getattr(dinas_rel, "Nama", None) if dinas_rel is not None else None
+    dinas_obj: Dict[str, Any] | None = {"DinasID": dinas_id, "Nama": dinas_name} if dinas_id is not None else None
     claims: Dict[str, Any] = {
         "sub": user.NIP,
         "ID": user.ID,
         "NIP": user.NIP,
-        "Role": role,
+    "Role": roles_list,
         "NamaLengkap": user.NamaLengkap,
         "Email": user.Email,
         "NoTelepon": user.NoTelepon,
-        "DinasID": user.DinasID,
+        "DinasID": dinas_id,
+        "Dinas": dinas_obj,
+        "isVerified": getattr(user, "isVerified", None),
         "Lang": lang,
     }
-    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(data=claims, expires_delta=access_token_expires)
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-# ---------------- OTP / Forgot Password Flow ----------------
+
 @router.post("/auth/forgot-password", response_model=schemas.SuccessResponse[schemas.Message])
 def forgot_password(payload: schemas.ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
     lang = detect_lang(request)
@@ -163,3 +196,47 @@ def reset_password(payload: schemas.ResetPasswordRequest, request: Request, db: 
     consume_password_reset_code(db, user, payload.otp)
     db.commit()
     return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="done"), message=get_message("password_reset_success", lang))
+
+
+class RegisterVerifyRequest(schemas.BaseModel):  # reuse BaseModel via schemas import? We'll embed simply
+    email: str
+    otp: str
+
+@router.post("/auth/verify-register", response_model=schemas.SuccessResponse[schemas.OTPVerifyResponse])
+def verify_register(payload: RegisterVerifyRequest, request: Request, db: Session = Depends(get_db)):
+    lang = detect_lang(request)
+    user = db.query(models.User).filter(models.User.Email == payload.email).first()
+    if not user:
+        return schemas.SuccessResponse[schemas.OTPVerifyResponse](data=schemas.OTPVerifyResponse(valid=False, reason="invalid"), message=get_message("otp_invalid", lang))
+    ok, reason = verify_account_verification_code(db, user, payload.otp)
+    if not ok:
+        key = "otp_invalid" if reason == "invalid" else "otp_expired"
+        return schemas.SuccessResponse[schemas.OTPVerifyResponse](data=schemas.OTPVerifyResponse(valid=False, reason=reason), message=get_message(key, lang))
+    # set user verified
+    setattr(user, "isVerified", True)
+    db.add(user)
+    consume_account_verification_code(db, user, payload.otp)
+    db.commit()
+    return schemas.SuccessResponse[schemas.OTPVerifyResponse](data=schemas.OTPVerifyResponse(valid=True), message="account_verified")
+
+
+class ResendRegisterOTPRequest(schemas.BaseModel):
+    email: str
+
+@router.post("/auth/resend-register-otp", response_model=schemas.SuccessResponse[schemas.Message])
+def resend_register_otp(payload: ResendRegisterOTPRequest, request: Request, db: Session = Depends(get_db)):
+    lang = detect_lang(request)
+    user = db.query(models.User).filter(models.User.Email == payload.email).first()
+    if not user:
+        # Tidak bocorkan bahwa email tidak ada
+        return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="ok"), message=get_message("otp_sent", lang))
+    if getattr(user, "isVerified", False):
+        return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="already_verified"), message="already_verified")
+    rec = create_account_verification_code(db, user)
+    # TODO kirim email sungguhan; sementara embed di debug mode
+    from config import get_settings
+    settings = get_settings()
+    msg = get_message("otp_sent", lang)
+    if settings.debug:
+        msg = f"{msg} | OTP={rec.KodeUnik}"
+    return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="resent"), message=msg)

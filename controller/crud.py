@@ -10,17 +10,23 @@ def create_user(db: Session, user: schemas.UserCreate):
         NamaLengkap=user.NamaLengkap,
         Email=user.Email,
         NoTelepon=user.NoTelepon,
-        Password=auth.get_password_hash(user.Password), 
-        DinasID=user.DinasID
+        Password=auth.get_password_hash(user.Password),
+        DinasID=None,
     )
     db.add(db_user)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-       
         from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail="NIP atau Email sudah terdaftar")
+        msg = str(e.orig).lower() if getattr(e, 'orig', None) else ''
+        if 'duplicate' in msg or 'uq_user_nip' in msg or 'uq_user_email' in msg or 'unique' in msg:
+            detail = "NIP atau Email sudah terdaftar"
+        elif 'foreign key' in msg or 'fk' in msg:
+            detail = "Relasi Dinas tidak valid"
+        else:
+            detail = "Gagal membuat user"
+        raise HTTPException(status_code=400, detail=detail)
     db.refresh(db_user)
     return db_user
 

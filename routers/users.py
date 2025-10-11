@@ -5,6 +5,7 @@ import schemas.schemas as schemas
 from database.database import SessionLocal
 from model.models import User as UserModel
 from services.user_service import UserService
+from config import get_settings
 from i18n.messages import get_message
 
 router = APIRouter(prefix="/users", tags=["Users"]) 
@@ -17,9 +18,19 @@ def get_db():
         db.close()
 
 @router.post("/", response_model=schemas.SuccessResponse[schemas.UserResponse])
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)) -> schemas.SuccessResponse[schemas.UserResponse]:
+def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)) -> schemas.SuccessResponse[schemas.UserResponse]:
+    settings = get_settings()
     created = UserService.create(db, user)
-    return schemas.SuccessResponse[schemas.UserResponse](data=created, message=get_message("user_create_success", None))
+    msg = get_message("user_create_success", None)
+    # Jangan expose OTP di production
+    if settings.debug and hasattr(created, "_registration_otp"):
+        msg = f"{msg} | OTP={getattr(created, '_registration_otp')}"
+    return schemas.SuccessResponse[schemas.UserResponse](data=created, message=msg)
+
+@router.post("/register", response_model=schemas.SuccessResponse[schemas.UserResponse])
+def register_user_alias(user: schemas.UserCreate, db: Session = Depends(get_db)) -> schemas.SuccessResponse[schemas.UserResponse]:
+    return register_user(user, db)  # reuse logic
+
 
 @router.get("/", response_model=schemas.SuccessListResponse[schemas.UserResponse])
 def read_users(skip: int = 0, limit: int = 10, db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.UserResponse]:

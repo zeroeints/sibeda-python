@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum as SAEnum,
     UniqueConstraint,
     func,
+    Boolean,
    
 )
 from sqlalchemy.orm import relationship
@@ -85,6 +86,8 @@ class User(Base):
     Email = Column(String(255), nullable=False, unique=True)
     NoTelepon = Column(String(20))
     Password = Column(String(255), nullable=False)
+    # Kolom verifikasi akun user
+    isVerified = Column(Boolean, default=False, server_default="0", nullable=False)
 
     DinasID = Column(
         Integer,
