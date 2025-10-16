@@ -76,14 +76,14 @@ class User(Base):
     __tablename__ = "User"
     __table_args__ = (
         UniqueConstraint("NIP", name="uq_user_nip"),
-        UniqueConstraint("Email", name="uq_user_email"),
+       
     )
 
     ID = Column(Integer, primary_key=True, autoincrement=True, index=True)
     NIP = Column(String(50), nullable=False, unique=True)
     Role = Column(SAEnum(RoleEnum), nullable=False)
     NamaLengkap = Column(String(255), nullable=False)
-    Email = Column(String(255), nullable=False, unique=True)
+    Email = Column(String(255), nullable=False)
     NoTelepon = Column(String(20))
     Password = Column(String(255), nullable=False)
     # Kolom verifikasi akun user

@@ -17,6 +17,45 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 settings = get_settings()
 from starlette.responses import Response
+from typing import cast, Mapping
+
+
+def _as_bytes(buf: bytes | bytearray | memoryview) -> bytes:
+    """Normalize various buffer types into bytes with clear type narrowing for Pylance."""
+    if isinstance(buf, bytes):
+        return buf
+    if isinstance(buf, bytearray):
+        return bytes(buf)
+    # memoryview
+    return buf.tobytes()
+
+
+def _to_safe_json(obj: Any) -> Any:
+    """Recursively convert non-JSON-serializable objects (like bytes) into safe forms.
+    - bytes/bytearray/memoryview -> try utf-8 decode, else base64 string
+    - dict/list/tuple/set -> recurse
+    """
+    import base64
+    if isinstance(obj, (bytes, bytearray, memoryview)):
+        buf = _as_bytes(cast(bytes | bytearray | memoryview, obj))
+        try:
+            return buf.decode("utf-8")
+        except Exception:
+            return base64.b64encode(buf).decode("ascii")
+    if isinstance(obj, dict):
+        d = cast(Mapping[Any, Any], obj)
+        return {k: _to_safe_json(v) for k, v in d.items()}
+    # Handle common sequence types explicitly to aid type checkers
+    if isinstance(obj, list):
+        lst = cast(list[Any], obj)
+        return [_to_safe_json(v) for v in lst]
+    if isinstance(obj, tuple):
+        tpl = cast(tuple[Any, ...], obj)
+        return [_to_safe_json(v) for v in tpl]
+    if isinstance(obj, set):
+        st = cast(set[Any], obj)
+        return [_to_safe_json(v) for v in st]
+    return obj
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp):
@@ -144,7 +183,10 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     request_id = getattr(request.state, "request_id", None)
     lang = detect_lang(request)
-    body = error_payload(422, "validation_error", lang, extra={"details": exc.errors()})
+    # Sanitize pydantic v2 errors which may include non-serializable values (e.g., bytes in 'input')
+    safe_errors = _to_safe_json(exc.errors())
+    # Keep both 'details' (project convention) and 'detail' (FastAPI default) for compatibility
+    body = error_payload(422, "validation_error", lang, extra={"details": safe_errors, "detail": safe_errors})
     if request_id:
         body["request_id"] = request_id
     return JSONResponse(status_code=422, content=body)

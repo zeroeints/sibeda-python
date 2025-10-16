@@ -4,7 +4,7 @@ from database.database import SessionLocal
 import controller.auth as auth
 import schemas.schemas as schemas
 import model.models as models
-from utils.otp import get_or_create_qr_code, verify_qr_code, consume_qr_code, encode_qr_token, decode_qr_token
+from utils.otp import get_or_create_qr_code, verify_qr_code, consume_qr_code, encode_qr_token, decode_qr_token, extract_kode_unik_from_qr
 from utils.responses import detect_lang
 from i18n.messages import get_message
 
@@ -72,3 +72,39 @@ def assign_dinas_with_qr(payload: schemas.QRAssignRequest, request: Request, db:
     consume_qr_code(db, user, raw_code)
     db.commit()
     return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="assigned"), message=get_message("dinas_assigned", lang))
+
+
+@router.post("/scan")
+def scan_qr_code(payload: schemas.QRScanRequest, request: Request, db: Session = Depends(get_db)):
+   
+    lang = detect_lang(request)
+    
+    try:
+        # Extract kode unik dari input (handle signed token & raw code)
+        raw_code = extract_kode_unik_from_qr(payload.kode_unik)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    # Cari kode unik di database
+    qr_record = db.query(models.UniqueCodeGenerator).filter(
+        models.UniqueCodeGenerator.KodeUnik == raw_code
+    ).first()
+    
+    if not qr_record:
+        raise HTTPException(status_code=404, detail=get_message("not_found", lang))
+    
+    # Ambil data user
+    user = db.query(models.User).filter(models.User.ID == qr_record.UserID).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail=get_message("user_not_found", lang))
+    
+    # Convert ke UserResponse
+    user_data = schemas.UserResponse.model_validate(user)
+    
+    # Return data user
+    return schemas.SuccessResponse[schemas.UserResponse](
+        data=user_data,
+        message=get_message("qr_ready", lang)
+    )
+

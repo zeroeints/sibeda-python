@@ -2,6 +2,7 @@ from fastapi import FastAPI
 import model.models as models
 from routers import users as users_router, auth as auth_router, dinas as dinas_router
 from routers import vehicle as vehicle_router, wallet as wallet_router, report as report_router, vehicle_type as vehicle_type_router
+from routers import submission as submission_router
 from routers import qr as qr_router
 from database.database import SessionLocal, engine
 from contextlib import asynccontextmanager
@@ -32,6 +33,7 @@ app.include_router(wallet_router.router)
 app.include_router(report_router.router)
 app.include_router(vehicle_type_router.router)
 app.include_router(qr_router.router)
+app.include_router(submission_router.router)
 
 def get_db():
     db = SessionLocal()

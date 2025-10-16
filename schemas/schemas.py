@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 from typing import Generic, TypeVar
 from pydantic.generics import GenericModel
+from datetime import datetime
 
 T = TypeVar("T")
 
@@ -21,6 +22,11 @@ class RoleEnum(str, Enum):
 class VehicleStatusEnum(str, Enum):
     Active = "Active"
     Nonactive = "Nonactive"
+
+class SubmissionStatusEnum(str, Enum):
+    Accepted = "Accepted"
+    Rejected = "Rejected"
+    Pending = "Pending"
 
 class UserBase(BaseModel):
     NIP: str = Field(..., min_length=18, max_length=50, description="Nomor Induk Pegawai minimal 18 karakter")
@@ -197,6 +203,39 @@ class ReportResponse(ReportBase):
     class Config:
         from_attributes = True
 
+# ------------------- Submission Schemas -------------------
+class SubmissionBase(BaseModel):
+    KodeUnik: str
+    CreatorID: int
+    ReceiverID: int
+    TotalCashAdvance: float
+    VehicleID: int
+    Status: SubmissionStatusEnum | None = None
+
+class SubmissionCreate(SubmissionBase):
+    pass
+
+class SubmissionUpdate(BaseModel):
+    KodeUnik: str | None = None
+    CreatorID: int | None = None
+    ReceiverID: int | None = None
+    TotalCashAdvance: float | None = None
+    VehicleID: int | None = None
+    Status: SubmissionStatusEnum | None = None
+
+class SubmissionResponse(BaseModel):
+    ID: int
+    KodeUnik: str
+    CreatorID: int
+    ReceiverID: int
+    TotalCashAdvance: float
+    VehicleID: int
+    Status: SubmissionStatusEnum  # concrete in response
+    created_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
 # ------------------- Password Reset / OTP Schemas -------------------
 class ForgotPasswordRequest(BaseModel):
     email: str
@@ -223,3 +262,6 @@ class QRAssignRequest(BaseModel):
 class QRGetResponse(BaseModel):
     code: str | None = None
     expiresAt: str | None = None
+
+class QRScanRequest(BaseModel):
+    kode_unik: str = Field(..., description="QR code input (signed token atau raw code)")

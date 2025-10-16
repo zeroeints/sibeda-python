@@ -6,16 +6,16 @@ from typing import TYPE_CHECKING
 from model import models    
 from config import get_settings
 import hmac, hashlib, base64, json
-if TYPE_CHECKING:  # hanya untuk tipe statis
+if TYPE_CHECKING:
     from model.models import User, UniqueCodeGenerator
 
-# Alias enum agar tetap ringkas
+
 PurposeEnum = models.PurposeEnum
 
-OTP_LENGTH = 6
-OTP_EXP_MINUTES = 10  # diubah dari 10 ke 2 menit
+OTP_LENGTH = 4
+OTP_EXP_MINUTES = 2
 
-# Secret for QR token signing
+
 _SETTINGS = get_settings()
 _QR_SECRET: bytes = (_SETTINGS.secret_key or "sibeda-secret").encode("utf-8")
 
@@ -59,9 +59,7 @@ def encode_qr_token(user: 'User', code: str) -> str:
     return f"{_b64url(p_bytes)}.{_b64url(sig)}"
 
 def decode_qr_token(token: str) -> tuple[bool, str | None, int | None, str | None]:
-    """Decode and verify QR token. Returns (ok, reason, uid, code).
-    reason can be: "format", "signature", "json".
-    """
+   
     try:
         parts = token.split(".")
         if len(parts) != 2:
@@ -77,6 +75,22 @@ def decode_qr_token(token: str) -> tuple[bool, str | None, int | None, str | Non
         return True, None, uid, code
     except Exception:
         return False, "json", None, None
+
+def extract_kode_unik_from_qr(qr_input: str) -> str:
+  
+    
+    # Cek apakah ini signed token (ada tanda titik)
+    if "." in qr_input:
+        # Kemungkinan signed token, coba decode
+        ok, reason, _uid, code = decode_qr_token(qr_input)
+        if ok and code:
+            return code
+        else:
+            # Token tidak valid
+            raise ValueError(f"Token QR tidak valid: {reason}")
+    
+    # Bukan token, anggap sebagai raw kode unik
+    return qr_input
 
 def create_password_reset_code(db: Session, user: 'User') -> 'UniqueCodeGenerator':
     # hapus kode lama purpose password_reset (opsional agar hanya satu aktif)
@@ -169,9 +183,7 @@ def consume_account_verification_code(db: Session, user: 'User', otp: str):
 
 # ---------------- QR Code (Purpose: otp) ----------------
 def get_or_create_qr_code(db: Session, user: 'User') -> 'UniqueCodeGenerator':
-    """Return existing non-expired QR code record for user or create a new one.
-    Uses PurposeEnum.otp and same expiry window (OTP_EXP_MINUTES).
-    """
+  
     now = _utc_now()
     rec = db.query(models.UniqueCodeGenerator).filter(
         models.UniqueCodeGenerator.UserID == user.ID,

@@ -20,8 +20,8 @@ def create_user(db: Session, user: schemas.UserCreate):
         db.rollback()
         from fastapi import HTTPException
         msg = str(e.orig).lower() if getattr(e, 'orig', None) else ''
-        if 'duplicate' in msg or 'uq_user_nip' in msg or 'uq_user_email' in msg or 'unique' in msg:
-            detail = "NIP atau Email sudah terdaftar"
+        if 'duplicate' in msg or 'uq_user_nip' in msg or 'unique' in msg:
+            detail = "NIP sudah terdaftar"
         elif 'foreign key' in msg or 'fk' in msg:
             detail = "Relasi Dinas tidak valid"
         else:
