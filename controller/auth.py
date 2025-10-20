@@ -11,11 +11,25 @@ from database import database
 from config import get_settings
 import logging
 
+# Compatibility shim: passlib <1.7.4 tries to read bcrypt.__about__.__version__
+# but bcrypt 4.x removed __about__. Add minimal shim to prevent AttributeError.
+try:
+    import bcrypt as _bcrypt  # type: ignore
+    if not hasattr(_bcrypt, "__about__") and hasattr(_bcrypt, "__version__"):
+        class _About:
+            __version__ = getattr(_bcrypt, "__version__", "4.0.0")
+        _bcrypt.__about__ = _About()  # type: ignore[attr-defined]
+except Exception:
+    # Don't break startup if bcrypt not installed yet
+    pass
+
 settings = get_settings()
 SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
+# Use bcrypt_sha256 to support passwords >72 bytes (bcrypt limit)
+# Still verify old bcrypt hashes via "deprecated=auto"
 pwd_context = CryptContext(
     schemes=["bcrypt_sha256", "bcrypt"],
     deprecated="auto",

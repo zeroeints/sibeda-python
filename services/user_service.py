@@ -6,6 +6,9 @@ from fastapi import HTTPException
 import model.models as models
 import controller.auth as auth
 import schemas.schemas as schemas
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UserService:
     @staticmethod
@@ -41,21 +44,33 @@ class UserService:
             raise HTTPException(status_code=400, detail=detail)
         db.refresh(user)
        
+        # Generate OTP verifikasi dan kirim email
         try:
             from utils.otp import create_account_verification_code 
             from utils.mailer import send_registration_otp, MailSendError  
+            
+            logger.info(f"Creating OTP verification code for user {user.ID}")
             otp_rec = create_account_verification_code(db, user)  
             otp_code = getattr(otp_rec, "KodeUnik", None)
+            
             if otp_code:
                 setattr(user, "_registration_otp", otp_code)
+                logger.info(f"OTP code generated: {otp_code}")
                 
+                # Kirim email OTP (abaikan error agar tidak blok registrasi)
                 try:
+                    logger.info(f"Attempting to send OTP email to {user.Email}")
                     send_registration_otp(str(user.Email), str(otp_code))
-                except MailSendError:
-                    pass
-        except Exception:
-           
-            pass
+                    logger.info(f"OTP email sent successfully to {user.Email}")
+                except MailSendError as e:
+                    logger.warning(f"Failed to send OTP email to {user.Email}: {e}")
+                    # Tidak raise error, biarkan user tetap terdaftar
+                except Exception as e:
+                    logger.error(f"Unexpected error sending OTP email: {e}", exc_info=True)
+        except Exception as e:
+            # Jangan gagal total jika OTP gagal dibuat
+            logger.error(f"Failed to create OTP for user {user.ID}: {e}", exc_info=True)
+        
         return user
 
     @staticmethod

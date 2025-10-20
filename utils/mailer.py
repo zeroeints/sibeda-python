@@ -1,8 +1,13 @@
 from __future__ import annotations
 import smtplib
+import ssl
+import logging
+import time
 from email.message import EmailMessage
 from typing import Iterable, Tuple
 from config import get_settings
+
+logger = logging.getLogger(__name__)
 
 class MailSendError(Exception):
     pass
@@ -40,7 +45,7 @@ def _otp_templates(kind: str, otp: str) -> Tuple[str, Tuple[str, str]]:
                             <tr>
                                 <td align='center'>
                                     <div style='display:inline-block;background-color:#fafafa;border-radius:50%;padding:16px'>
-                                        <img src='https://kelurahantanjungbenoa.badungkab.go.id/storage/kelurahantanjungbenoa/image/PEMKAB%20BADUNG.png' alt='Logo' style='width:120px;height:80px;display:block' data-image-whitelisted='' class='CToWUd' data-bit='iit'>
+                                        <img src='https://upload.wikimedia.org/wikipedia/commons/d/d2/Lambang_Kabupaten_Badung.png' alt='Logo' style='width:120px;height:120px;display:block' data-image-whitelisted='' class='CToWUd' data-bit='iit'>
                                     </div>
 
                                 </td>
@@ -64,7 +69,7 @@ def _otp_templates(kind: str, otp: str) -> Tuple[str, Tuple[str, str]]:
                                                         <tbody>
                                                             <tr>
                                                                 <td style='background-color:#f0f0f0;padding:16px;border-radius:12px;font-size:12px;color:#555;text-align:center'>
-                                                                    <p class='text-align:center;'><b>{otp}</b></p>
+                                                                    <p class='text-align:center;' style='font-size:20px;font-weight:bold;color:#000'><b>{otp}</b></p>
                                                                 </td>
                                                             </tr>
                                                         </tbody>
@@ -148,34 +153,118 @@ def _otp_templates(kind: str, otp: str) -> Tuple[str, Tuple[str, str]]:
 def send_email(subject: str, body_text: str, to: Iterable[str], body_html: str | None = None):
     settings = get_settings()
     if not settings.smtp_host or not settings.mail_from:
+        logger.warning("SMTP not configured (SMTP_HOST or MAIL_FROM missing)")
         raise MailSendError("SMTP not configured (SMTP_HOST or MAIL_FROM missing)")
     to_list = list(to)
     if not to_list:
         raise ValueError("Recipient list empty")
 
     msg = _build_message(subject, body_text, body_html, to_list, settings.mail_from, settings.mail_from_name)
-
+    
+    # Gunakan timeout yang lebih panjang untuk menghindari timeout di network lambat
+    smtp_timeout = getattr(settings, 'smtp_timeout', 30)
+    start_time = time.time()
+    
+    # Buat SSL context yang lebih permissive untuk menghindari handshake errors
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    
     try:
-        if settings.smtp_tls:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port or 587, timeout=15) as server:
-                server.ehlo()
-                server.starttls()
+        logger.info(f"Sending email to {to_list}: {subject}")
+        
+        # Port 465 menggunakan SMTP_SSL (lebih stabil daripada STARTTLS)
+        if settings.smtp_port == 465:
+            with smtplib.SMTP_SSL(settings.smtp_host, 465, context=context, timeout=smtp_timeout) as server:
+                server.set_debuglevel(1 if settings.debug else 0)
+                logger.debug(f"Connected via SMTP_SSL to {settings.smtp_host}:465")
+                
                 if settings.smtp_user and settings.smtp_password:
+                    logger.debug(f"Logging in as {settings.smtp_user}")
                     server.login(settings.smtp_user, settings.smtp_password)
+                    logger.debug("Login successful")
+                
+                logger.info(f"Sending message to {to_list}")
                 server.send_message(msg)
+                
+                duration = time.time() - start_time
+                logger.info(f"Email sent successfully to {to_list} in {duration:.2f}s")
+        
+        # Port 587 atau TLS mode menggunakan STARTTLS
+        elif settings.smtp_tls:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port or 587, timeout=smtp_timeout) as server:
+                server.set_debuglevel(1 if settings.debug else 0)
+                logger.debug(f"Connected to SMTP server {settings.smtp_host}:{settings.smtp_port or 587}")
+                
+                server.ehlo()
+                logger.debug("STARTTLS negotiation...")
+                server.starttls(context=context)
+                server.ehlo()  # EHLO ulang setelah STARTTLS
+                
+                if settings.smtp_user and settings.smtp_password:
+                    logger.debug(f"Logging in as {settings.smtp_user}")
+                    server.login(settings.smtp_user, settings.smtp_password)
+                    logger.debug("Login successful")
+                
+                logger.info(f"Sending message to {to_list}")
+                server.send_message(msg)
+                
+                duration = time.time() - start_time
+                logger.info(f"Email sent successfully to {to_list} in {duration:.2f}s")
+        
+        # Plain SMTP tanpa TLS (port 25, tidak direkomendasikan)
         else:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port or 25, timeout=15) as server:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port or 25, timeout=smtp_timeout) as server:
+                server.set_debuglevel(1 if settings.debug else 0)
+                logger.debug(f"Connected to SMTP server {settings.smtp_host}:{settings.smtp_port or 25}")
+                
                 server.ehlo()
+                
                 if settings.smtp_user and settings.smtp_password:
+                    logger.debug(f"Logging in as {settings.smtp_user}")
                     server.login(settings.smtp_user, settings.smtp_password)
+                    logger.debug("Login successful")
+                
+                logger.info(f"Sending message to {to_list}")
                 server.send_message(msg)
+                
+                duration = time.time() - start_time
+                logger.info(f"Email sent successfully to {to_list} in {duration:.2f}s")
+    
+    # Exception handling: most specific first, then general
+    except smtplib.SMTPAuthenticationError as e:
+        duration = time.time() - start_time
+        logger.error(f"SMTP authentication failed after {duration:.2f}s: {e}")
+        raise MailSendError(f"SMTP authentication failed: {e}") from e
+    except smtplib.SMTPException as e:
+        duration = time.time() - start_time
+        logger.error(f"SMTP error after {duration:.2f}s: {e}", exc_info=True)
+        raise MailSendError(f"SMTP error: {e}") from e
+    except (ConnectionResetError, ConnectionRefusedError, OSError) as e:
+        duration = time.time() - start_time
+        logger.error(f"Connection error after {duration:.2f}s: {e}. Possibly rate-limited by Gmail or firewall issue.")
+        raise MailSendError(f"Connection error: {e}") from e
     except Exception as e:
+        duration = time.time() - start_time
+        logger.error(f"Email send failed after {duration:.2f}s: {e}", exc_info=True)
         raise MailSendError(str(e)) from e
 
 def send_registration_otp(email: str, otp: str):
-    subject, (plain, html) = _otp_templates("register", otp)
-    send_email(subject, plain, [email], html)
+    try:
+        subject, (plain, html) = _otp_templates("register", otp)
+        send_email(subject, plain, [email], html)
+        logger.info(f"Registration OTP sent successfully to {email}")
+    except MailSendError as e:
+        logger.warning(f"Failed to send registration OTP to {email}: {e}")
+        # Re-raise untuk beri tahu caller bahwa email gagal
+        raise
 
 def send_password_reset_otp(email: str, otp: str):
-    subject, (plain, html) = _otp_templates("reset", otp)
-    send_email(subject, plain, [email], html)
+    try:
+        subject, (plain, html) = _otp_templates("reset", otp)
+        send_email(subject, plain, [email], html)
+        logger.info(f"Password reset OTP sent successfully to {email}")
+    except MailSendError as e:
+        logger.warning(f"Failed to send password reset OTP to {email}: {e}")
+        # Re-raise untuk beri tahu caller bahwa email gagal
+        raise
