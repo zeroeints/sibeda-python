@@ -10,7 +10,7 @@ import schemas.schemas as schemas
 class UserService:
     @staticmethod
     def create(db: Session, user_in: schemas.UserCreate) -> models.User:
-        # Normalisasi input
+        
         nip = user_in.NIP.strip()
         nama = user_in.NamaLengkap.strip()
         email = user_in.Email.strip().lower()
@@ -64,12 +64,12 @@ class UserService:
     
     @staticmethod
     def get_by_id(db: Session, user_id: int) -> models.User | None:
-        """Ambil user berdasarkan ID"""
+        
         return db.query(models.User).filter(models.User.ID == user_id).first()
     
     @staticmethod
     def update(db: Session, user_id: int, user_update: schemas.UserUpdate) -> models.User:
-        """Update user berdasarkan ID"""
+       
         # Cari user
         user = db.query(models.User).filter(models.User.ID == user_id).first()
         if not user:
