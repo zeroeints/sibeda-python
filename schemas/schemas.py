@@ -53,6 +53,36 @@ class UserCreate(UserBase):
             raise ValueError("Password minimal 8 karakter")
         return v
 
+class UserUpdate(BaseModel):
+    """Schema untuk update user. Semua field optional."""
+    NIP: str | None = Field(None, min_length=18, max_length=50, description="Nomor Induk Pegawai minimal 18 karakter")
+    NamaLengkap: str | None = None
+    Email: str | None = None
+    NoTelepon: str | None = None
+    Password: str | None = Field(None, min_length=8, max_length=255, description="Password minimal 8 karakter")
+    Role: RoleEnum | None = None
+    DinasID: int | None = None
+    
+    @field_validator("NIP")
+    @classmethod
+    def nip_strip(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) < 18:
+            raise ValueError("NIP minimal 18 karakter")
+        return v
+    
+    @field_validator("Password")
+    @classmethod
+    def password_strip(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) < 8:
+            raise ValueError("Password minimal 8 karakter")
+        return v
+
 class LoginJSON(BaseModel):
     NIP: str
     Password: str

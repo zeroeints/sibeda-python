@@ -40,7 +40,7 @@ class UserService:
                 detail = "Gagal membuat user"
             raise HTTPException(status_code=400, detail=detail)
         db.refresh(user)
-        # Generate OTP verifikasi 
+       
         try:
             from utils.otp import create_account_verification_code 
             from utils.mailer import send_registration_otp, MailSendError  
@@ -48,16 +48,66 @@ class UserService:
             otp_code = getattr(otp_rec, "KodeUnik", None)
             if otp_code:
                 setattr(user, "_registration_otp", otp_code)
-                # Kirim email jika konfig SMTP tersedia (abaikan error agar tidak blok register)
+                
                 try:
                     send_registration_otp(str(user.Email), str(otp_code))
                 except MailSendError:
                     pass
         except Exception:
-            # Jangan gagal total jika OTP gagal dibuat; bisa dilog nanti
+           
             pass
         return user
 
     @staticmethod
     def list(db: Session, skip: int = 0, limit: int = 10) -> List[models.User]:
         return db.query(models.User).offset(skip).limit(limit).all()
+    
+    @staticmethod
+    def get_by_id(db: Session, user_id: int) -> models.User | None:
+        """Ambil user berdasarkan ID"""
+        return db.query(models.User).filter(models.User.ID == user_id).first()
+    
+    @staticmethod
+    def update(db: Session, user_id: int, user_update: schemas.UserUpdate) -> models.User:
+        """Update user berdasarkan ID"""
+        # Cari user
+        user = db.query(models.User).filter(models.User.ID == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User tidak ditemukan")
+        
+        # Update field yang tidak None
+        update_data = user_update.model_dump(exclude_unset=True)
+        
+        for field, value in update_data.items():
+            if value is not None:
+                # Handle password dengan hash
+                if field == "Password":
+                    value = auth.get_password_hash(value)
+                
+                # Normalisasi string fields
+                if field == "NIP" and isinstance(value, str):
+                    value = value.strip()
+                elif field == "NamaLengkap" and isinstance(value, str):
+                    value = value.strip()
+                elif field == "Email" and isinstance(value, str):
+                    value = value.strip().lower()
+                elif field == "NoTelepon" and isinstance(value, str):
+                    value = value.strip()
+                
+                setattr(user, field, value)
+        
+        try:
+            db.commit()
+            db.refresh(user)
+        except IntegrityError as e:
+            db.rollback()
+            msg = str(e.orig).lower() if getattr(e, 'orig', None) else ''
+            if 'duplicate' in msg or 'uq_user_nip' in msg or 'unique' in msg:
+                detail = "NIP sudah digunakan oleh user lain"
+            elif 'foreign key' in msg or 'fk' in msg:
+                detail = "DinasID tidak valid"
+            else:
+                detail = "Gagal update user"
+            raise HTTPException(status_code=400, detail=detail)
+        
+        return user
