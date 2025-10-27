@@ -279,6 +279,19 @@ class ResetPasswordRequest(BaseModel):
     otp: str
     new_password: str
 
+class ChangePasswordRequest(BaseModel):
+    """Request schema untuk change password dengan validasi old password"""
+    old_password: str = Field(..., min_length=1, description="Password lama untuk validasi")
+    new_password: str = Field(..., min_length=8, max_length=255, description="Password baru minimal 8 karakter")
+    
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 8:
+            raise ValueError("Password baru minimal 8 karakter")
+        return v
+
 class OTPVerifyResponse(BaseModel):
     valid: bool
     reason: str | None = None

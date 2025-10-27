@@ -42,5 +42,3 @@ def get_db():
     finally:
         db.close()
 
-
-## Legacy endpoints removed; now provided via routers.vehicle & routers.wallet

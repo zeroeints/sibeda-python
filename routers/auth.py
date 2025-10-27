@@ -171,7 +171,7 @@ def verify_otp(payload: schemas.VerifyOTPRequest, request: Request, db: Session 
     lang = detect_lang(request)
     user = db.query(models.User).filter(models.User.Email == payload.email).first()
     if not user:
-        # treat as invalid to avoid enumeration
+
         return schemas.SuccessResponse[schemas.OTPVerifyResponse](data=schemas.OTPVerifyResponse(valid=False, reason="invalid"), message=get_message("otp_invalid", lang))
     ok, reason = verify_password_reset_code(db, user, payload.otp)
     if not ok:
@@ -183,14 +183,13 @@ def verify_otp(payload: schemas.VerifyOTPRequest, request: Request, db: Session 
 def reset_password(payload: schemas.ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
     lang = detect_lang(request)
     user = db.query(models.User).filter(models.User.Email == payload.email).first()
-    # hindari timing leak: proses sama walau user None
+
     if not user:
         return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="ignored"), message=get_message("otp_invalid", lang))
     ok, reason = verify_password_reset_code(db, user, payload.otp)
     if not ok:
         key = "otp_invalid" if reason == "invalid" else "otp_expired"
         return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail=reason or "invalid"), message=get_message(key, lang))
-    # update password
     setattr(user, "Password", auth.get_password_hash(payload.new_password))
     db.add(user)
     consume_password_reset_code(db, user, payload.otp)
@@ -198,7 +197,7 @@ def reset_password(payload: schemas.ResetPasswordRequest, request: Request, db: 
     return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="done"), message=get_message("password_reset_success", lang))
 
 
-class RegisterVerifyRequest(schemas.BaseModel):  # reuse BaseModel via schemas import? We'll embed simply
+class RegisterVerifyRequest(schemas.BaseModel): 
     email: str
     otp: str
 
@@ -212,7 +211,6 @@ def verify_register(payload: RegisterVerifyRequest, request: Request, db: Sessio
     if not ok:
         key = "otp_invalid" if reason == "invalid" else "otp_expired"
         return schemas.SuccessResponse[schemas.OTPVerifyResponse](data=schemas.OTPVerifyResponse(valid=False, reason=reason), message=get_message(key, lang))
-    # set user verified
     setattr(user, "isVerified", True)
     db.add(user)
     consume_account_verification_code(db, user, payload.otp)
@@ -228,7 +226,6 @@ def resend_register_otp(payload: ResendRegisterOTPRequest, request: Request, db:
     lang = detect_lang(request)
     user = db.query(models.User).filter(models.User.Email == payload.email).first()
     if not user:
-        # Tidak bocorkan bahwa email tidak ada
         return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="ok"), message=get_message("otp_sent", lang))
     if getattr(user, "isVerified", False):
         return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="already_verified"), message="already_verified")
@@ -240,3 +237,112 @@ def resend_register_otp(payload: ResendRegisterOTPRequest, request: Request, db:
     if settings.debug:
         msg = f"{msg} | OTP={rec.KodeUnik}"
     return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="resent"), message=msg)
+
+
+@router.post("/auth/refresh-token", response_model=schemas.SuccessResponse[schemas.Token])
+def refresh_token(
+    request: Request,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+) -> schemas.SuccessResponse[schemas.Token]:
+    
+    lang = detect_lang(request)
+    
+    
+    user = db.query(models.User).filter(models.User.ID == current_user.ID).first()
+    if not user:
+        raise HTTPException(status_code=404, detail=get_message("user_not_found", lang))
+    
+    
+    if not getattr(user, "isVerified", False):
+        raise HTTPException(status_code=403, detail="account_not_verified")
+    
+    
+    role = user.Role.value if hasattr(user.Role, "value") else user.Role
+    role_str = str(role)
+    roles_list = [role_str]
+    
+    dinas_id = getattr(user, "DinasID", None)
+    dinas_rel = getattr(user, "dinas", None)
+    dinas_name = getattr(dinas_rel, "Nama", None) if dinas_rel is not None else None
+    dinas_obj: Dict[str, Any] | None = {"DinasID": dinas_id, "Nama": dinas_name} if dinas_id is not None else None
+    
+    claims: Dict[str, Any] = {
+        "sub": user.NIP,
+        "ID": user.ID,
+        "NIP": user.NIP,
+        "Role": roles_list,
+        "NamaLengkap": user.NamaLengkap,
+        "Email": user.Email,
+        "NoTelepon": user.NoTelepon,
+        "DinasID": dinas_id,
+        "Dinas": dinas_obj,
+        "isVerified": getattr(user, "isVerified", None),
+        "Lang": lang,
+    }
+    
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth.create_access_token(data=claims, expires_delta=access_token_expires)
+    
+
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Token refreshed: ID={user.ID}, NIP={user.NIP}")
+    
+    token = schemas.Token(access_token=access_token)
+    return schemas.SuccessResponse[schemas.Token](
+        data=token, 
+        message=get_message("token_refresh_success", lang)
+    )
+
+
+
+@router.post("/auth/change-password", response_model=schemas.SuccessResponse[schemas.Message])
+def change_password(
+    payload: schemas.ChangePasswordRequest,
+    request: Request,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+   
+    lang = detect_lang(request)
+    
+
+    user = db.query(models.User).filter(models.User.ID == current_user.ID).first()
+    if not user:
+        raise HTTPException(status_code=404, detail=get_message("user_not_found", lang))
+    
+
+    hashed_password = getattr(user, "Password", None)
+    if not hashed_password:
+        raise HTTPException(status_code=500, detail=get_message("internal_error", lang))
+    
+    if not auth.verify_password(payload.old_password, hashed_password):
+        raise HTTPException(
+            status_code=400, 
+            detail=get_message("old_password_incorrect", lang)
+        )
+    
+
+    if auth.verify_password(payload.new_password, hashed_password):
+        raise HTTPException(
+            status_code=400,
+            detail=get_message("new_password_same_as_old", lang)
+        )
+    
+    new_hashed_password = auth.get_password_hash(payload.new_password) 
+
+    setattr(user, "Password", new_hashed_password)
+    db.add(user)
+    db.commit()
+    
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Password changed: ID={user.ID}, NIP={user.NIP}")
+    
+    
+    return schemas.SuccessResponse[schemas.Message](
+        data=schemas.Message(detail="password_changed"),
+        message=get_message("password_change_success", lang)
+    )

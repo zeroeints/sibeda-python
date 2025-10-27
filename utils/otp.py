@@ -22,7 +22,7 @@ _QR_SECRET: bytes = (_SETTINGS.secret_key or "sibeda-secret").encode("utf-8")
 def generate_otp(length: int = OTP_LENGTH) -> str:
     return ''.join(random.choice('0123456789') for _ in range(length))
 
-# --- Time helpers to avoid naive vs aware comparison issues ---
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -79,21 +79,16 @@ def decode_qr_token(token: str) -> tuple[bool, str | None, int | None, str | Non
 def extract_kode_unik_from_qr(qr_input: str) -> str:
   
     
-    # Cek apakah ini signed token (ada tanda titik)
     if "." in qr_input:
-        # Kemungkinan signed token, coba decode
         ok, reason, _uid, code = decode_qr_token(qr_input)
         if ok and code:
             return code
         else:
-            # Token tidak valid
             raise ValueError(f"Token QR tidak valid: {reason}")
     
-    # Bukan token, anggap sebagai raw kode unik
     return qr_input
 
 def create_password_reset_code(db: Session, user: 'User') -> 'UniqueCodeGenerator':
-    # hapus kode lama purpose password_reset (opsional agar hanya satu aktif)
     db.query(models.UniqueCodeGenerator).filter(
         models.UniqueCodeGenerator.UserID == user.ID,
         models.UniqueCodeGenerator.Purpose == PurposeEnum.password_reset
@@ -118,7 +113,6 @@ def verify_password_reset_code(db: Session, user: 'User', otp: str):
     ).first()
     if not rec:
         return False, "invalid"
-    # Pylance mungkin menganggap expired_at sebagai ColumnElement, jadi amankan dengan isinstance
     now = _utc_now()
     exp_val = getattr(rec, "expired_at", None)
     if isinstance(exp_val, datetime):
@@ -137,9 +131,7 @@ def consume_password_reset_code(db: Session, user: 'User', otp: str):
     ).delete()
     db.commit()
 
-# ---------------- Account Verification (Register) ----------------
 def create_account_verification_code(db: Session, user: 'User') -> 'UniqueCodeGenerator':
-    # hapus kode lama purpose register (agar satu aktif saja)
     db.query(models.UniqueCodeGenerator).filter(
         models.UniqueCodeGenerator.UserID == user.ID,
         models.UniqueCodeGenerator.Purpose == PurposeEnum.register
