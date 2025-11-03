@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 import controller.auth as auth
 import schemas.schemas as schemas
@@ -56,3 +56,86 @@ def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Dep
 def patch_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.UserResponse]:
     """Alias untuk update user (PATCH method)"""
     return update_user(user_id, user_update, db, _current_user)
+
+@router.get("/stats/count-by-dinas", response_model=schemas.SuccessListResponse[schemas.UserCountByDinas])
+def get_user_count_by_dinas(db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.UserCountByDinas]:
+    """
+    Mendapatkan total pengguna per dinas.
+    
+    Returns list berisi:
+    - dinas_id: ID dinas (null jika user tidak punya dinas)
+    - dinas_nama: Nama dinas atau "Tidak Ada Dinas"
+    - total_users: Jumlah user di dinas tersebut
+    
+    Diurutkan dari dinas dengan user terbanyak.
+    """
+    user_counts = UserService.get_user_count_by_dinas(db)
+    return schemas.SuccessListResponse[schemas.UserCountByDinas](
+        data=user_counts, 
+        message="Berhasil mendapatkan total pengguna per dinas"
+    )
+
+
+@router.get("/detailed/search", response_model=schemas.PaginatedResponse[schemas.UserDetailResponse])
+def search_users_detailed(
+    search: str | None = Query(None, description="Cari berdasarkan NIP, Nama, atau Email"),
+    role: str | None = Query(None, description="Filter berdasarkan role: admin, kepala_dinas, pic"),
+    dinas_id: int | None = Query(None, description="Filter berdasarkan ID dinas"),
+    is_verified: bool | None = Query(None, description="Filter berdasarkan status verifikasi"),
+    limit: int = Query(100, ge=1, le=1000, description="Limit jumlah data (default 100, max 1000)"),
+    offset: int = Query(0, ge=0, description="Offset untuk pagination"),
+    db: Session = Depends(get_db),
+    _current_user: UserModel = Depends(auth.get_current_user)
+) -> schemas.PaginatedResponse[schemas.UserDetailResponse]:
+    """
+    Mencari dan mendapatkan detail lengkap pengguna dengan wallet dan dinas
+    
+    - **search**: Cari berdasarkan NIP, Nama Lengkap, atau Email (case-insensitive)
+    - **role**: Filter berdasarkan role (admin, kepala_dinas, pic)
+    - **dinas_id**: Filter berdasarkan ID dinas
+    - **is_verified**: Filter berdasarkan status verifikasi (true/false)
+    - **limit**: Batasi jumlah data (default 100)
+    - **offset**: Skip sejumlah data untuk pagination
+    
+    Returns:
+    - Detail user termasuk:
+      - Data user lengkap (NIP, Nama, Email, Role, dll)
+      - Wallet info (ID, Saldo, Type)
+      - Dinas info (ID, Nama)
+      - Total submission yang dibuat dan diterima
+    - Pagination info (total, has_more, dll)
+    """
+    # Get total count
+    total = UserService.count_users(
+        db,
+        search=search,
+        role=role,
+        dinas_id=dinas_id,
+        is_verified=is_verified
+    )
+    
+    # Get data
+    data = UserService.search_users_detailed(
+        db,
+        search=search,
+        role=role,
+        dinas_id=dinas_id,
+        is_verified=is_verified,
+        limit=limit,
+        offset=offset
+    )
+    
+    # Calculate pagination info
+    has_more = (offset + len(data)) < total
+    
+    return schemas.PaginatedResponse[schemas.UserDetailResponse](
+        data=data,  # type: ignore
+        message=f"Ditemukan {len(data)} dari {total} pengguna",
+        pagination={
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "returned": len(data),
+            "has_more": has_more
+        }
+    )

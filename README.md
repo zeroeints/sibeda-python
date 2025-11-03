@@ -127,3 +127,128 @@ Field `reason` menjelaskan kenapa token tidak valid (expired, salah signature, f
 ## Catatan
 
 Endpoint `/auth/verify` sebaiknya hanya diaktifkan di environment development. Bila perlu, lindungi dengan role atau hapus sebelum production.
+
+---
+
+## Endpoint Submission Monthly Report
+
+Untuk mendapatkan laporan pengajuan penggunaan dana per bulan, tersedia 3 endpoint baru:
+
+### 1. GET `/submission/monthly/summary`
+
+Mendapatkan ringkasan statistik pengajuan per bulan (total, status, dana)
+
+### 2. GET `/submission/monthly/details`
+
+Mendapatkan detail lengkap setiap pengajuan per bulan dengan informasi creator, receiver, dan vehicle
+
+### 3. GET `/submission/monthly/report`
+
+Mendapatkan laporan lengkap (ringkasan + detail) dalam satu request
+
+**Dokumentasi lengkap:** Lihat file [docs/SUBMISSION_MONTHLY_API.md](docs/SUBMISSION_MONTHLY_API.md)
+
+**Testing guide:** Lihat file [docs/TESTING_SUBMISSION_MONTHLY.md](docs/TESTING_SUBMISSION_MONTHLY.md)
+
+**Query Parameters:**
+
+- `month`: Integer 1-12 (bulan yang ingin ditampilkan)
+- `year`: Integer 2000-2100 (tahun yang ingin ditampilkan)
+
+**Authentication:** Bearer token required untuk semua endpoint
+
+**Contoh:**
+
+```bash
+GET /submission/monthly/report?month=11&year=2025
+Authorization: Bearer <token>
+```
+
+---
+
+## Endpoint Get All Submissions
+
+Untuk mendapatkan semua pengajuan dengan berbagai opsi filtering dan pagination:
+
+### 1. GET `/submission/`
+
+Mendapatkan semua submission dengan data basic (ID, KodeUnik, Status, dll)
+
+### 2. GET `/submission/all/detailed`
+
+Mendapatkan semua submission dengan **detail lengkap** (nama creator, receiver, vehicle) dan **pagination info**
+
+**Dokumentasi lengkap:** Lihat file [docs/GET_ALL_SUBMISSIONS_API.md](docs/GET_ALL_SUBMISSIONS_API.md)
+
+**Query Parameters:**
+
+- `creator_id`: Filter berdasarkan ID pembuat (optional)
+- `receiver_id`: Filter berdasarkan ID penerima (optional)
+- `vehicle_id`: Filter berdasarkan ID kendaraan (optional)
+- `status`: Filter berdasarkan status - Pending, Accepted, Rejected (optional)
+- `limit`: Batasi jumlah data (default 100 untuk detailed, max 1000)
+- `offset`: Skip sejumlah data untuk pagination (default 0)
+
+**Contoh:**
+
+```bash
+# Get all dengan detail lengkap
+GET /submission/all/detailed?limit=50&offset=0
+
+# Filter by status
+GET /submission/all/detailed?status=Pending
+
+# Multiple filters
+GET /submission/all/detailed?creator_id=10&status=Pending&limit=20
+```
+
+---
+
+## Endpoint Get Users with Details
+
+Untuk mendapatkan pengguna dengan detail lengkap termasuk wallet, dinas, dan submission statistics:
+
+### GET `/users/detailed/search`
+
+Mendapatkan semua pengguna dengan **detail lengkap** termasuk:
+- ✅ Data user lengkap (NIP, Nama, Email, Role, dll)
+- ✅ **Wallet info** (ID, Saldo, Type)
+- ✅ **Dinas info** (ID, Nama)
+- ✅ Total submission yang dibuat dan diterima
+- ✅ **Fitur pencarian** (search by NIP, Nama, Email)
+- ✅ **Multiple filters** (role, dinas, verification status)
+- ✅ **Pagination** dengan info lengkap
+
+**Dokumentasi lengkap:** Lihat file [docs/USER_DETAILED_SEARCH_API.md](docs/USER_DETAILED_SEARCH_API.md)
+
+**Query Parameters:**
+- `search`: Cari berdasarkan NIP, Nama, atau Email (optional, case-insensitive)
+- `role`: Filter berdasarkan role - admin, kepala_dinas, pic (optional)
+- `dinas_id`: Filter berdasarkan ID dinas (optional)
+- `is_verified`: Filter berdasarkan status verifikasi - true/false (optional)
+- `limit`: Batasi jumlah data (default 100, max 1000)
+- `offset`: Skip sejumlah data untuk pagination (default 0)
+
+**Contoh:**
+```bash
+# Search by name
+GET /users/detailed/search?search=John
+
+# Filter by role
+GET /users/detailed/search?role=pic
+
+# Filter by dinas
+GET /users/detailed/search?dinas_id=5
+
+# Multiple filters
+GET /users/detailed/search?role=pic&is_verified=true&dinas_id=5
+```
+
+**Response includes:**
+- User data (NIP, Nama, Email, Role, Status Verifikasi)
+- Wallet balance & type
+- Dinas name
+- Submission statistics (created & received)
+- Pagination info (total, has_more, dll)
+
+````

@@ -2,11 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database.database import SessionLocal
 import controller.auth as auth
-import controller.WalletType as wallet_type_controller
 import schemas.schemas as schemas
-import model.models as models
 from model.models import User as UserModel
 from services.wallet_service import WalletService
+from services.wallet_type_service import WalletTypeService
 from i18n.messages import get_message
 
 router = APIRouter(prefix="/wallet", tags=["Wallet"])
@@ -21,13 +20,12 @@ def get_db():
 # Wallet Type endpoints
 @router.get("/types", response_model=schemas.SuccessListResponse[schemas.WalletTypeResponse])
 def list_wallet_types(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.WalletTypeResponse]:
-    data = wallet_type_controller.get_wallet_type(db)
+    data = WalletTypeService.list(db)
     return schemas.SuccessListResponse[schemas.WalletTypeResponse](data=data, message=get_message("create_success", None))
 
 @router.post("/types", response_model=schemas.SuccessResponse[schemas.WalletTypeResponse])
 def create_wallet_type(payload: schemas.WalletTypeBase, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletTypeResponse]:
-    wt = models.WalletType(Nama=payload.Nama)
-    created = wallet_type_controller.create_wallet_type(db, wt)
+    created = WalletTypeService.create(db, payload)
     return schemas.SuccessResponse[schemas.WalletTypeResponse](data=created, message=get_message("create_success", None))
 
 # Wallet endpoints

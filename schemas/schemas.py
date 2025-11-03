@@ -14,6 +14,12 @@ class SuccessResponse(GenericModel, Generic[T]):
 class SuccessListResponse(SuccessResponse[list[T]], Generic[T]):  # convenience alias for lists
     pass
 
+class PaginatedResponse(GenericModel, Generic[T]):
+    success: bool = True
+    data: list[T]
+    message: str | None = None
+    pagination: dict[str, int | bool]
+
 class RoleEnum(str, Enum):
     admin = "admin"
     kepala_dinas = "kepala_dinas"
@@ -94,6 +100,28 @@ class UserResponse(UserBase):
 
     class Config:
         from_attributes = True 
+
+class UserDetailResponse(BaseModel):
+    """User dengan detail lengkap termasuk wallet dan dinas"""
+    ID: int
+    NIP: str
+    NamaLengkap: str
+    Email: str
+    NoTelepon: str | None = None
+    Role: RoleEnum
+    isVerified: bool | None = None
+    DinasID: int | None = None
+    DinasNama: str | None = None
+    # Wallet info
+    WalletID: int | None = None
+    WalletSaldo: float | None = None
+    WalletType: str | None = None
+    # Vehicle count
+    TotalSubmissionsCreated: int = 0
+    TotalSubmissionsReceived: int = 0
+
+    class Config:
+        from_attributes = True
 
 class UserLogin(BaseModel):
     email: str
@@ -266,6 +294,43 @@ class SubmissionResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# ------------------- Submission Summary & Detail Schemas -------------------
+class SubmissionDetailResponse(BaseModel):
+    """Detail pengajuan dengan informasi lengkap"""
+    ID: int
+    KodeUnik: str
+    CreatorID: int
+    CreatorName: str
+    ReceiverID: int
+    ReceiverName: str
+    TotalCashAdvance: float
+    VehicleID: int
+    VehicleName: str
+    VehiclePlat: str
+    Status: SubmissionStatusEnum
+    created_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+class SubmissionSummary(BaseModel):
+    """Ringkasan pengajuan per bulan"""
+    month: int  # 1-12
+    year: int
+    total_submissions: int
+    total_pending: int
+    total_accepted: int
+    total_rejected: int
+    total_cash_advance: float
+    total_cash_advance_accepted: float
+    total_cash_advance_rejected: float
+    total_cash_advance_pending: float
+
+class SubmissionMonthlyReport(BaseModel):
+    """Laporan bulanan dengan ringkasan dan detail"""
+    summary: SubmissionSummary
+    details: list[SubmissionDetailResponse]
+
 # ------------------- Password Reset / OTP Schemas -------------------
 class ForgotPasswordRequest(BaseModel):
     email: str
@@ -295,6 +360,16 @@ class ChangePasswordRequest(BaseModel):
 class OTPVerifyResponse(BaseModel):
     valid: bool
     reason: str | None = None
+
+# ------------------- User Stats Schemas -------------------
+class UserCountByDinas(BaseModel):
+    """Schema untuk total pengguna per dinas"""
+    dinas_id: int | None = None
+    dinas_nama: str
+    total_users: int
+    
+    class Config:
+        from_attributes = True
 
 # ------------------- QR Schemas -------------------
 class QRAssignRequest(BaseModel):

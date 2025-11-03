@@ -1,7 +1,8 @@
 from __future__ import annotations
-from typing import List
+from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from fastapi import HTTPException
 import model.models as models
 import controller.auth as auth
@@ -126,3 +127,171 @@ class UserService:
             raise HTTPException(status_code=400, detail=detail)
         
         return user
+
+    @staticmethod
+    def get_user_count_by_dinas(db: Session) -> List[Dict[str, Any]]:
+     
+        query = (
+            db.query(
+                models.User.DinasID.label("dinas_id"),
+                models.Dinas.Nama.label("dinas_nama"),
+                func.count(models.User.ID).label("total_users")
+            )
+            .outerjoin(models.Dinas, models.User.DinasID == models.Dinas.ID)
+            .group_by(models.User.DinasID, models.Dinas.Nama)
+            .order_by(func.count(models.User.ID).desc())  # Sort by total users descending
+        )
+        
+        results = query.all()
+        
+        user_counts: List[Dict[str, Any]] = []
+        for row in results:
+            count_data: Dict[str, Any] = {
+                "dinas_id": row.dinas_id,
+                "dinas_nama": row.dinas_nama if row.dinas_nama else "Tidak Ada Dinas",
+                "total_users": row.total_users
+            }
+            user_counts.append(count_data)
+        
+        return user_counts
+
+    @staticmethod
+    def search_users_detailed(
+        db: Session,
+        search: str | None = None,
+        role: str | None = None,
+        dinas_id: int | None = None,
+        is_verified: bool | None = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """
+        Mencari user dengan detail lengkap (wallet, dinas, submission count)
+        """
+        from sqlalchemy import or_, func as sql_func
+        
+        # Base query
+        query = db.query(models.User)
+        
+        # Apply search filter (search by NIP, Name, or Email)
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                or_(
+                    models.User.NIP.ilike(search_pattern),
+                    models.User.NamaLengkap.ilike(search_pattern),
+                    models.User.Email.ilike(search_pattern)
+                )
+            )
+        
+        # Apply role filter
+        if role:
+            try:
+                role_enum = models.RoleEnum[role]
+                query = query.filter(models.User.Role == role_enum)
+            except KeyError:
+                pass  # Invalid role, ignore
+        
+        # Apply dinas filter
+        if dinas_id is not None:
+            query = query.filter(models.User.DinasID == dinas_id)
+        
+        # Apply verification filter
+        if is_verified is not None:
+            query = query.filter(models.User.isVerified == is_verified)
+        
+        # Order by ID and apply pagination
+        query = query.order_by(models.User.ID.desc())
+        if offset > 0:
+            query = query.offset(offset)
+        if limit:
+            query = query.limit(limit)
+        
+        users = query.all()
+        
+        # Build detailed response
+        detailed_users: List[Dict[str, Any]] = []
+        for user in users:
+            # Get wallet info
+            wallet = db.query(models.Wallet).filter(models.Wallet.UserID == user.ID).first()
+            wallet_type_name = None
+            if wallet:
+                wallet_type = db.query(models.WalletType).filter(
+                    models.WalletType.ID == wallet.WalletTypeID
+                ).first()
+                wallet_type_name = wallet_type.Nama if wallet_type else None
+            
+            # Get dinas name
+            dinas_name = None
+            if user.DinasID is not None:  # type: ignore
+                dinas = db.query(models.Dinas).filter(models.Dinas.ID == user.DinasID).first()
+                dinas_name = dinas.Nama if dinas else None
+            
+            # Count submissions
+            submissions_created = db.query(sql_func.count(models.Submission.ID)).filter(
+                models.Submission.CreatorID == user.ID
+            ).scalar() or 0
+            
+            submissions_received = db.query(sql_func.count(models.Submission.ID)).filter(
+                models.Submission.ReceiverID == user.ID
+            ).scalar() or 0
+            
+            user_detail: Dict[str, Any] = {
+                "ID": user.ID,
+                "NIP": user.NIP,
+                "NamaLengkap": user.NamaLengkap,
+                "Email": user.Email,
+                "NoTelepon": user.NoTelepon,
+                "Role": user.Role.value,
+                "isVerified": user.isVerified,
+                "DinasID": user.DinasID,
+                "DinasNama": dinas_name,
+                "WalletID": wallet.ID if wallet else None,
+                "WalletSaldo": float(wallet.Saldo) if wallet else None,  # type: ignore
+                "WalletType": wallet_type_name,
+                "TotalSubmissionsCreated": submissions_created,
+                "TotalSubmissionsReceived": submissions_received,
+            }
+            detailed_users.append(user_detail)
+        
+        return detailed_users
+    
+    @staticmethod
+    def count_users(
+        db: Session,
+        search: str | None = None,
+        role: str | None = None,
+        dinas_id: int | None = None,
+        is_verified: bool | None = None
+    ) -> int:
+        """
+        Menghitung total user berdasarkan filter
+        """
+        from sqlalchemy import or_
+        
+        query = db.query(models.User)
+        
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                or_(
+                    models.User.NIP.ilike(search_pattern),
+                    models.User.NamaLengkap.ilike(search_pattern),
+                    models.User.Email.ilike(search_pattern)
+                )
+            )
+        
+        if role:
+            try:
+                role_enum = models.RoleEnum[role]
+                query = query.filter(models.User.Role == role_enum)
+            except KeyError:
+                pass
+        
+        if dinas_id is not None:
+            query = query.filter(models.User.DinasID == dinas_id)
+        
+        if is_verified is not None:
+            query = query.filter(models.User.isVerified == is_verified)
+        
+        return query.count()
