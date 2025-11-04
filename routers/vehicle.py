@@ -35,3 +35,46 @@ def update_vehicle(vehicle_id: int, payload: schemas.VehicleCreate, db: Session 
 def delete_vehicle(vehicle_id: int, db: Session = Depends(get_db), _user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.Message]:
     VehicleService.delete(db, vehicle_id)
     return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="Vehicle dihapus"), message=get_message("vehicle_delete_success", None))
+
+@router.get("/my/vehicles", response_model=schemas.SuccessListResponse[schemas.MyVehicleResponse])
+def get_my_vehicles(db: Session = Depends(get_db), current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.MyVehicleResponse]:
+    """
+    Mendapatkan semua kendaraan yang pernah digunakan oleh user
+    
+    Menampilkan kendaraan yang terkait dengan user melalui:
+    - Submission (sebagai creator atau receiver)
+    - Report (pengisian bensin)
+    
+    Response mencakup:
+    - Data kendaraan lengkap (Nama, Plat, Merek, dll)
+    - Tipe kendaraan
+    - Statistik penggunaan (total submission, report, bensin, biaya)
+    - Info pengisian bensin terakhir
+    """
+    vehicles = VehicleService.get_my_vehicles(db, current_user.ID)  # type: ignore
+    return schemas.SuccessListResponse[schemas.MyVehicleResponse](
+        data=vehicles,  # type: ignore
+        message=f"Ditemukan {len(vehicles)} kendaraan"
+    )
+
+@router.get("/my/vehicles/{vehicle_id}", response_model=schemas.SuccessResponse[schemas.VehicleDetailResponse])
+def get_my_vehicle_detail(
+    vehicle_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.VehicleDetailResponse]:
+    """
+    Mendapatkan detail lengkap kendaraan termasuk riwayat pengisian bensin
+    
+    - **vehicle_id**: ID kendaraan yang ingin dilihat detailnya
+    
+    Response mencakup:
+    - Data kendaraan lengkap
+    - Statistik penggunaan
+    - Riwayat 10 pengisian bensin terakhir (tanggal, liter, rupiah, odometer)
+    """
+    vehicle_detail = VehicleService.get_vehicle_detail(db, vehicle_id, current_user.ID)  # type: ignore
+    return schemas.SuccessResponse[schemas.VehicleDetailResponse](
+        data=vehicle_detail,  # type: ignore
+        message="Detail kendaraan berhasil ditemukan"
+    )

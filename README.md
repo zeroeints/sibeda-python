@@ -211,6 +211,7 @@ Untuk mendapatkan pengguna dengan detail lengkap termasuk wallet, dinas, dan sub
 ### GET `/users/detailed/search`
 
 Mendapatkan semua pengguna dengan **detail lengkap** termasuk:
+
 - ✅ Data user lengkap (NIP, Nama, Email, Role, dll)
 - ✅ **Wallet info** (ID, Saldo, Type)
 - ✅ **Dinas info** (ID, Nama)
@@ -222,6 +223,7 @@ Mendapatkan semua pengguna dengan **detail lengkap** termasuk:
 **Dokumentasi lengkap:** Lihat file [docs/USER_DETAILED_SEARCH_API.md](docs/USER_DETAILED_SEARCH_API.md)
 
 **Query Parameters:**
+
 - `search`: Cari berdasarkan NIP, Nama, atau Email (optional, case-insensitive)
 - `role`: Filter berdasarkan role - admin, kepala_dinas, pic (optional)
 - `dinas_id`: Filter berdasarkan ID dinas (optional)
@@ -230,6 +232,7 @@ Mendapatkan semua pengguna dengan **detail lengkap** termasuk:
 - `offset`: Skip sejumlah data untuk pagination (default 0)
 
 **Contoh:**
+
 ```bash
 # Search by name
 GET /users/detailed/search?search=John
@@ -245,10 +248,251 @@ GET /users/detailed/search?role=pic&is_verified=true&dinas_id=5
 ```
 
 **Response includes:**
+
 - User data (NIP, Nama, Email, Role, Status Verifikasi)
 - Wallet balance & type
 - Dinas name
 - Submission statistics (created & received)
 - Pagination info (total, has_more, dll)
 
-````
+---
+
+## Endpoint Get User Balance
+
+Untuk mendapatkan saldo wallet user beserta informasi lengkap:
+
+### GET `/users/balance/{user_id}`
+
+Mendapatkan saldo wallet user dengan **detail lengkap** termasuk:
+
+- ✅ User info (NIP, Nama, Email, Role)
+- ✅ **Saldo wallet** (jumlah dana tersedia)
+- ✅ **Wallet type** (jenis wallet: Bensin, Non-Bensin, dll)
+- ✅ **Dinas info** (ID dan Nama dinas)
+
+**Dokumentasi lengkap:** Lihat file [docs/USER_BALANCE_API.md](docs/USER_BALANCE_API.md)
+
+**Path Parameters:**
+
+- `user_id`: ID user yang ingin dicek saldonya (required)
+
+**Authentication:** Bearer token required
+
+**Contoh:**
+
+```bash
+# Get balance untuk user ID 1
+GET /users/balance/1
+Authorization: Bearer <token>
+
+# Get balance untuk user ID 5
+GET /users/balance/5
+Authorization: Bearer <token>
+```
+
+**Response example:**
+
+```json
+{
+	"success": true,
+	"data": {
+		"user_id": 1,
+		"nip": "123456789012345678",
+		"nama_lengkap": "John Doe",
+		"email": "john.doe@example.com",
+		"role": "pic",
+		"dinas_id": 5,
+		"dinas_nama": "Dinas Kesehatan",
+		"wallet_id": 10,
+		"saldo": 5000000.0,
+		"wallet_type_id": 1,
+		"wallet_type_nama": "Bensin"
+	},
+	"message": "Berhasil mendapatkan saldo user"
+}
+```
+
+**Use Cases:**
+
+- Cek saldo sebelum membuat submission baru
+- Monitoring saldo user untuk admin/kepala dinas
+- Verifikasi dana tersedia untuk pengajuan
+- Self-check balance untuk user
+
+---
+
+## Endpoint Get My Vehicles
+
+Untuk mendapatkan kendaraan yang pernah digunakan user beserta detail penggunaan dan riwayat pengisian bensin:
+
+### 1. GET `/vehicle/my/vehicles`
+
+Mendapatkan semua kendaraan yang pernah digunakan oleh user dengan **statistik lengkap**:
+
+- ✅ Data kendaraan lengkap (Nama, Plat, Merek, Odometer, dll)
+- ✅ **Tipe kendaraan** (Mobil Dinas, Motor Dinas, dll)
+- ✅ **Total submission** menggunakan kendaraan ini
+- ✅ **Total report** pengisian bensin
+- ✅ **Total bensin** (liter) yang sudah diisi
+- ✅ **Total biaya** bensin (Rupiah)
+- ✅ **Info pengisian terakhir** (tanggal, liter, rupiah, odometer)
+
+### 2. GET `/vehicle/my/vehicles/{vehicle_id}`
+
+Mendapatkan **detail lengkap** kendaraan termasuk:
+
+- ✅ Semua info kendaraan dan statistik
+- ✅ **Riwayat 10 pengisian bensin terakhir**
+  - Tanggal & waktu
+  - Jumlah liter & rupiah
+  - Odometer saat pengisian
+  - Lokasi (latitude, longitude)
+  - Deskripsi
+
+**Dokumentasi lengkap:** Lihat file [docs/MY_VEHICLES_API.md](docs/MY_VEHICLES_API.md)
+
+**Authentication:** Bearer token required
+
+**Contoh:**
+
+```bash
+# Get all my vehicles
+GET /vehicle/my/vehicles
+Authorization: Bearer <token>
+
+# Get detail specific vehicle with refuel history
+GET /vehicle/my/vehicles/1
+Authorization: Bearer <token>
+```
+
+**Response example (list):**
+
+```json
+{
+	"success": true,
+	"data": [
+		{
+			"ID": 1,
+			"Nama": "Toyota Avanza 2020",
+			"Plat": "B 1234 ABC",
+			"Merek": "Toyota",
+			"VehicleTypeName": "Mobil Dinas",
+			"TotalFuelLiters": 450.5,
+			"TotalRupiahSpent": 4500000.0,
+			"LastRefuelDate": "2025-11-03T14:30:00+07:00",
+			"LastRefuelLiters": 25.5,
+			"TotalSubmissions": 15,
+			"TotalReports": 23
+		}
+	],
+	"message": "Ditemukan 1 kendaraan"
+}
+```
+
+**Use Cases:**
+
+- Dashboard kendaraan yang pernah digunakan
+- Monitoring konsumsi BBM per kendaraan
+- Tracking pengisian bensin terakhir
+- Analisis efisiensi kendaraan (liter/km)
+- Validasi sebelum membuat submission baru
+
+---
+
+## Endpoint Get My Reports
+
+Untuk mendapatkan laporan (report) pengisian bensin user beserta detail lengkap:
+
+### 1. GET `/report/my/reports`
+
+Mendapatkan semua report/pelaporan pengisian bensin yang dibuat oleh user dengan **detail lengkap**:
+
+- ✅ Info report (KodeUnik, Jumlah Liter, Rupiah, Waktu, Lokasi)
+- ✅ **Info kendaraan** (Nama, Plat, Tipe)
+- ✅ **Info submission terkait** (Status, Total Cash Advance)
+- ✅ **Foto bukti** (Kendaraan, Odometer, Invoice, MyPertamina)
+- ✅ **Filter by vehicle** (opsional)
+- ✅ **Pagination** dengan info lengkap
+
+### 2. GET `/report/my/reports/{report_id}`
+
+Mendapatkan **detail lengkap** sebuah report termasuk:
+
+- ✅ Info user pelapor (Nama, NIP)
+- ✅ Info kendaraan lengkap (Nama, Plat, Merek, Kapasitas, Jenis Bensin, dll)
+- ✅ Detail pengisian (Liter, Rupiah, Odometer, Lokasi GPS)
+- ✅ Semua foto bukti (4 jenis foto)
+- ✅ Info submission terkait lengkap (Status, Total, Creator, Receiver)
+
+**Dokumentasi lengkap:** Lihat file [docs/MY_REPORTS_API.md](docs/MY_REPORTS_API.md)
+
+**Query Parameters (list):**
+
+- `vehicle_id`: Filter berdasarkan ID kendaraan (optional)
+- `limit`: Batasi jumlah data (default 100, max 1000)
+- `offset`: Skip sejumlah data untuk pagination (default 0)
+
+**Authentication:** Bearer token required
+
+**Contoh:**
+
+```bash
+# Get all my reports
+GET /report/my/reports?limit=50&offset=0
+Authorization: Bearer <token>
+
+# Filter by vehicle
+GET /report/my/reports?vehicle_id=1
+Authorization: Bearer <token>
+
+# Get detail specific report
+GET /report/my/reports/101
+Authorization: Bearer <token>
+```
+
+**Response example (list):**
+
+```json
+{
+	"success": true,
+	"data": [
+		{
+			"ID": 101,
+			"KodeUnik": "SUB-2025-001",
+			"VehicleName": "Toyota Avanza 2020",
+			"VehiclePlat": "B 1234 ABC",
+			"VehicleType": "Mobil Dinas",
+			"AmountRupiah": 250000.0,
+			"AmountLiter": 25.5,
+			"Timestamp": "2025-11-03T14:30:00+07:00",
+			"Odometer": 45000,
+			"SubmissionStatus": "Accepted",
+			"SubmissionTotal": 500000.0
+		}
+	],
+	"message": "Ditemukan 1 dari 23 report",
+	"pagination": {
+		"total": 23,
+		"limit": 50,
+		"offset": 0,
+		"returned": 1,
+		"has_more": true
+	}
+}
+```
+
+**Use Cases:**
+
+- Dashboard laporan pengisian bensin user
+- Tracking pengeluaran BBM per kendaraan
+- Verifikasi laporan dengan foto bukti
+- Analisis pola pengisian (waktu & lokasi)
+- Rekonsiliasi dengan submission/pengajuan dana
+
+```
+
+```
+
+```
+
+```

@@ -123,6 +123,23 @@ class UserDetailResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class UserBalanceResponse(BaseModel):
+    """Response untuk saldo user"""
+    user_id: int
+    nip: str
+    nama_lengkap: str
+    email: str
+    role: str
+    dinas_id: int | None = None
+    dinas_nama: str | None = None
+    wallet_id: int
+    saldo: float
+    wallet_type_id: int
+    wallet_type_nama: str | None = None
+
+    class Config:
+        from_attributes = True
+
 class UserLogin(BaseModel):
     email: str
     password: str
@@ -216,6 +233,69 @@ class VehicleResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class MyVehicleResponse(BaseModel):
+    """Response untuk kendaraan user dengan detail penggunaan"""
+    ID: int
+    Nama: str
+    Plat: str
+    Merek: str | None = None
+    KapasitasMesin: int | None = None
+    JenisBensin: str | None = None
+    Odometer: int | None = None
+    Status: str
+    FotoFisik: str | None = None
+    VehicleTypeID: int
+    VehicleTypeName: str | None = None
+    # User usage statistics
+    TotalSubmissions: int = 0
+    TotalReports: int = 0
+    TotalFuelLiters: float = 0.0
+    TotalRupiahSpent: float = 0.0
+    # Latest refuel info
+    LastRefuelDate: str | None = None
+    LastRefuelLiters: float | None = None
+    LastRefuelRupiah: float | None = None
+    LastOdometer: int | None = None
+
+    class Config:
+        from_attributes = True
+
+class RefuelHistoryItem(BaseModel):
+    """Item riwayat pengisian bensin"""
+    ID: int
+    KodeUnik: str
+    AmountRupiah: float
+    AmountLiter: float
+    Description: str | None = None
+    Timestamp: str
+    Odometer: int | None = None
+    Latitude: float | None = None
+    Longitude: float | None = None
+
+class VehicleDetailResponse(BaseModel):
+    """Response detail lengkap kendaraan dengan riwayat pengisian"""
+    ID: int
+    Nama: str
+    Plat: str
+    Merek: str | None = None
+    KapasitasMesin: int | None = None
+    JenisBensin: str | None = None
+    Odometer: int | None = None
+    Status: str
+    FotoFisik: str | None = None
+    VehicleTypeID: int
+    VehicleTypeName: str | None = None
+    # Statistics
+    TotalSubmissions: int = 0
+    TotalReports: int = 0
+    TotalFuelLiters: float = 0.0
+    TotalRupiahSpent: float = 0.0
+    # Recent refuel history
+    RecentRefuelHistory: list[RefuelHistoryItem] = []
+
+    class Config:
+        from_attributes = True
+
 class Message(BaseModel):
     detail: str
 
@@ -257,6 +337,86 @@ class ReportUpdate(BaseModel):
 class ReportResponse(ReportBase):
     ID: int
     Timestamp: str | None = None  # serialized ISO datetime
+
+    class Config:
+        from_attributes = True
+
+class MyReportResponse(BaseModel):
+    """Response untuk report user dengan detail vehicle dan submission"""
+    ID: int
+    KodeUnik: str
+    UserID: int
+    VehicleID: int
+    VehicleName: str | None = None
+    VehiclePlat: str | None = None
+    VehicleType: str | None = None
+    AmountRupiah: float
+    AmountLiter: float
+    Description: str | None = None
+    Timestamp: str | None = None
+    Latitude: float | None = None
+    Longitude: float | None = None
+    Odometer: int | None = None
+    VehiclePhysicalPhotoPath: str | None = None
+    OdometerPhotoPath: str | None = None
+    InvoicePhotoPath: str | None = None
+    MyPertaminaPhotoPath: str | None = None
+    # Submission info
+    SubmissionStatus: str | None = None
+    SubmissionTotal: float | None = None
+
+    class Config:
+        from_attributes = True
+
+class VehicleInfo(BaseModel):
+    """Info kendaraan untuk detail report"""
+    ID: int
+    Nama: str
+    Plat: str
+    Merek: str | None = None
+    KapasitasMesin: int | None = None
+    JenisBensin: str | None = None
+    Odometer: int | None = None
+    Status: str
+    VehicleType: str | None = None
+
+class SubmissionInfo(BaseModel):
+    """Info submission untuk detail report"""
+    ID: int
+    KodeUnik: str
+    Status: str
+    TotalCashAdvance: float
+    CreatorID: int
+    CreatorName: str | None = None
+    ReceiverID: int
+    ReceiverName: str | None = None
+    CreatedAt: str | None = None
+
+class PhotoPaths(BaseModel):
+    """Path foto-foto report"""
+    VehiclePhysical: str | None = None
+    Odometer: str | None = None
+    Invoice: str | None = None
+    MyPertamina: str | None = None
+
+class ReportDetailResponse(BaseModel):
+    """Response detail lengkap report"""
+    ID: int
+    KodeUnik: str
+    UserID: int
+    UserName: str | None = None
+    UserNIP: str | None = None
+    VehicleID: int
+    Vehicle: VehicleInfo | None = None
+    AmountRupiah: float
+    AmountLiter: float
+    Description: str | None = None
+    Timestamp: str | None = None
+    Latitude: float | None = None
+    Longitude: float | None = None
+    Odometer: int | None = None
+    Photos: PhotoPaths
+    Submission: SubmissionInfo | None = None
 
     class Config:
         from_attributes = True

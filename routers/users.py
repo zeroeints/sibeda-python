@@ -76,6 +76,28 @@ def get_user_count_by_dinas(db: Session = Depends(get_db), _current_user: UserMo
     )
 
 
+@router.get("/balance/{user_id}", response_model=schemas.SuccessResponse[schemas.UserBalanceResponse])
+def get_user_balance(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _current_user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.UserBalanceResponse]:
+    """
+    Mendapatkan saldo wallet user beserta informasi user
+    
+    - **user_id**: ID user yang ingin dicek saldonya
+    
+    Returns:
+    - User info (NIP, Nama, Email, Role, Dinas)
+    - Wallet info (ID, Saldo, Wallet Type)
+    """
+    balance_info = UserService.get_user_balance(db, user_id)
+    return schemas.SuccessResponse[schemas.UserBalanceResponse](
+        data=balance_info,  # type: ignore
+        message="Berhasil mendapatkan saldo user"
+    )
+
+
 @router.get("/detailed/search", response_model=schemas.PaginatedResponse[schemas.UserDetailResponse])
 def search_users_detailed(
     search: str | None = Query(None, description="Cari berdasarkan NIP, Nama, atau Email"),
