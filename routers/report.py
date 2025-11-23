@@ -28,7 +28,7 @@ def get_report(report_id: int, db: Session = Depends(get_db), _u: UserModel = De
         raise HTTPException(status_code=404, detail="Report tidak ditemukan")
     return schemas.SuccessResponse[schemas.ReportResponse](data=r, message=get_message("create_success", None))
 
-@router.post("/", response_model=schemas.SuccessResponse[schemas.ReportResponse])
+@router.post("", response_model=schemas.SuccessResponse[schemas.ReportResponse])
 def create_report(payload: schemas.ReportCreate, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.ReportResponse]:
     created = ReportService.create(db, payload)
     return schemas.SuccessResponse[schemas.ReportResponse](data=created, message=get_message("report_create_success", None))

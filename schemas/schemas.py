@@ -336,7 +336,7 @@ class ReportUpdate(BaseModel):
 
 class ReportResponse(ReportBase):
     ID: int
-    Timestamp: str | None = None  # serialized ISO datetime
+    Timestamp: datetime | None = None
 
     class Config:
         from_attributes = True

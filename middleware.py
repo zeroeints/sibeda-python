@@ -2,22 +2,38 @@ import time
 import traceback
 import uuid
 import json
-from typing import Callable, Awaitable, Dict, Any
+from typing import Callable, Awaitable, Dict, Any, cast, Mapping
 
 from fastapi import Request, FastAPI
 from fastapi.responses import JSONResponse
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from starlette.types import ASGIApp
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.exceptions import RequestValidationError
-from config import get_settings
-from utils.responses import error_payload, detect_lang  # type: ignore
-from i18n.messages import is_supported_lang, normalize_lang
 from starlette.middleware.base import RequestResponseEndpoint
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.theme import Theme
+
+from config import get_settings
+from utils.responses import error_payload, detect_lang
+from i18n.messages import is_supported_lang, normalize_lang
+
 settings = get_settings()
-from starlette.responses import Response
-from typing import cast, Mapping
+
+# Konfigurasi Rich Console
+custom_theme = Theme({
+    "info": "green",
+    "warning": "yellow",
+    "error": "bold red",
+    "method": "bold cyan",
+    "path": "bold white",
+})
+console = Console(theme=custom_theme)
 
 
 def _as_bytes(buf: bytes | bytearray | memoryview) -> bytes:
@@ -69,39 +85,84 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         start = time.time()
         path = request.url.path
         method = request.method
-        request_id = request.headers.get(settings.request_id_header)
-        if not request_id:
-            request_id = uuid.uuid4().hex
-        # Attach to state so handlers can reuse
+        request_id = request.headers.get(settings.request_id_header) or uuid.uuid4().hex
         request.state.request_id = request_id
+
+        # Clone request body
+        body_bytes = await request.body()
+        
+        # Override receive
+        async def receive():
+            return {"type": "http.request", "body": body_bytes}
+        request._receive = receive
+
         try:
             response = await call_next(request)
             duration = (time.time() - start) * 1000
-            log_record: Dict[str, Any] = {
-                "level": "INFO",
-                "msg": "request",
-                "method": method,
-                "path": path,
-                "status": response.status_code,
-                "duration_ms": round(duration, 2),
-                "request_id": request_id,
-            }
+
+            # Tentukan warna berdasarkan status code
+            status_color = "green"
+            if response.status_code >= 400: status_color = "yellow"
+            if response.status_code >= 500: status_color = "red"
+
+            # Log singkat satu baris yang jelas
+            log_message = (
+                f"[method]{method}[/method] "
+                f"[path]{path}[/path] "
+                f"[{status_color}]{response.status_code}[/{status_color}] "
+                f"- [bold]{duration:.2f}ms[/bold]"
+            )
+            console.print(log_message)
+
+            # Jika Debug Mode ON atau terjadi Error, tampilkan detail
+            if settings.debug or response.status_code >= 400:
+                self._print_debug_details(request, body_bytes, response, request_id, status_color)
+
             response.headers[settings.request_id_header] = request_id
-            print(json.dumps(log_record))
             return response
-        except Exception:
+
+        except Exception as e:
             duration = (time.time() - start) * 1000
-            error_record: Dict[str, Any] = {
-                "level": "ERROR",
-                "msg": "unhandled_exception",
-                "method": method,
-                "path": path,
-                "duration_ms": round(duration, 2),
-                "request_id": request_id,
-                "trace": traceback.format_exc(),
-            }
-            print(json.dumps(error_record))
-            raise
+            console.print(f"[error]UNHANDLED EXCEPTION[/error] in {method} {path} - {duration:.2f}ms")
+            console.print_exception(show_locals=False) # Tampilkan traceback yang cantik
+            raise e
+
+    def _print_debug_details(self, request, body_bytes, response, request_id, color):
+        """Helper untuk mencetak detail body/response saat debug"""
+        try:
+            # Request Body
+            req_body_str = ""
+            if body_bytes:
+                try:
+                    req_json = json.loads(body_bytes)
+                    req_body_str = json.dumps(req_json, indent=2)
+                except:
+                    req_body_str = body_bytes.decode("utf-8", errors="ignore")
+
+            # Panel konten
+            content = f"[bold]Request ID:[/bold] {request_id}\n"
+            if request.query_params:
+                content += f"[bold]Query:[/bold] {dict(request.query_params)}\n"
+            if req_body_str:
+                content += f"[bold]Request Body:[/bold]\n{req_body_str}\n"
+            
+            # Response Body (Hati-hati jika response streaming/besar)
+            if hasattr(response, "body"):
+                try:
+                    res_body = response.body.decode("utf-8", errors="ignore")
+                    # Coba format JSON jika memungkinkan
+                    try:
+                        res_json = json.loads(res_body)
+                        res_body = json.dumps(res_json, indent=2)
+                    except:
+                        pass
+                    content += f"[bold]Response Body:[/bold]\n{res_body}"
+                except:
+                    pass
+
+            console.print(Panel(content, title="Details", border_style=color, expand=False))
+        except Exception:
+            pass # Jangan sampai logging bikin error aplikasi
 
 
 class LanguagePrefixMiddleware(BaseHTTPMiddleware):
