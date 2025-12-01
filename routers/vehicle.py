@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, Query
+from typing import List
 from sqlalchemy.orm import Session
 from database.database import SessionLocal
 import controller.auth as auth
+from i18n.messages import get_message
 from services.vehicle_service import VehicleService
 import schemas.schemas as schemas
 from model.models import User as UserModel
@@ -16,7 +18,7 @@ def get_db():
         db.close()
 
 @router.get(
-    "/", 
+    "", 
     response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.VehicleResponse]],
     summary="List Vehicles (Paged)"
 )
@@ -32,7 +34,7 @@ def list_vehicles(
         data=result, message="Success"
     )
 @router.post(
-    "/", 
+    "", 
     response_model=schemas.SuccessResponse[schemas.VehicleResponse],
     summary="Create Vehicle",
     description="Menambahkan kendaraan baru ke dalam sistem."
@@ -51,6 +53,25 @@ def update_vehicle(vehicle_id: int, payload: schemas.VehicleCreate, db: Session 
     v = VehicleService.update(db, vehicle_id, payload)
     return schemas.SuccessResponse[schemas.VehicleResponse](data=v, message=get_message("update_success", None))
 
+@router.patch(
+    "/{vehicle_id}",
+    response_model=schemas.SuccessResponse[schemas.VehicleResponse],
+    summary="Patch Vehicle",
+    description="Memperbarui informasi kendaraan secara parsial."
+)
+def patch_vehicle(
+    vehicle_id: int, 
+    payload: schemas.VehicleUpdate, # Gunakan VehicleUpdate agar field optional
+    db: Session = Depends(get_db), 
+    _user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.VehicleResponse]:
+    # Kita reuse logic update di service karena service sudah handle exclude_unset
+    # Namun perlu casting payload ke VehicleCreate di service jika strict, 
+    # tapi Python dynamic typing akan mengizinkan selama atributnya ada.
+    # Agar aman, kita pastikan logic service menggunakan model_dump(exclude_unset=True).
+    v = VehicleService.update(db, vehicle_id, payload) # type: ignore
+    return schemas.SuccessResponse[schemas.VehicleResponse](data=v, message=get_message("update_success", None))
+
 @router.delete(
     "/{vehicle_id}", 
     response_model=schemas.SuccessResponse[schemas.Message],
@@ -61,10 +82,32 @@ def delete_vehicle(vehicle_id: int, db: Session = Depends(get_db), _user: UserMo
     VehicleService.delete(db, vehicle_id)
     return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="Vehicle dihapus"), message=get_message("vehicle_delete_success", None))
 
-@router.get("/my/vehicles", response_model=schemas.SuccessResponse[schemas.MyVehicleResponse])
+# [FIXED] Menggunakan List[schemas.MyVehicleResponse] karena return value berupa array/list
+@router.get("/my/vehicles", response_model=schemas.SuccessResponse[List[schemas.MyVehicleResponse]])
 def get_my_vehicles(db: Session = Depends(get_db), current_user: UserModel = Depends(auth.get_current_user)):
     vehicles = VehicleService.get_my_vehicles(db, current_user.ID)
-    return schemas.SuccessResponse[schemas.MyVehicleResponse](data=vehicles, message=f"Found {len(vehicles)}")
+    return schemas.SuccessResponse[List[schemas.MyVehicleResponse]](
+        data=vehicles, 
+        message=f"Ditemukan {len(vehicles)} kendaraan milik anda"
+    )
+
+# [NEW ENDPOINT] Get Vehicles by User ID (Admin/Kadis view)
+@router.get(
+    "/user/{user_id}", 
+    response_model=schemas.SuccessResponse[List[schemas.VehicleResponse]],
+    summary="Get Vehicles Assigned to User",
+    description="Melihat daftar kendaraan yang di-assign ke user tertentu."
+)
+def get_vehicles_by_user_id(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _user: UserModel = Depends(auth.get_current_user)
+):
+    vehicles = VehicleService.get_by_user_id(db, user_id)
+    return schemas.SuccessResponse[List[schemas.VehicleResponse]](
+        data=vehicles,
+        message=f"Ditemukan {len(vehicles)} kendaraan pada user {user_id}"
+    )
 
 @router.get(
     "/my/vehicles/{vehicle_id}", 

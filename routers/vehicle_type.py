@@ -18,7 +18,7 @@ def get_db():
         db.close()
 
 @router.get(
-    "/", 
+    "", 
     response_model=schemas.SuccessResponse[schemas.VehicleTypeResponse],
     summary="List Vehicle Types",
     description="Mendapatkan daftar tipe kendaraan (Mobil, Motor, Truk, dll)."
@@ -42,7 +42,7 @@ def get_vehicle_type(vt_id: int, request: Request, db: Session = Depends(get_db)
     return schemas.SuccessResponse[schemas.VehicleTypeResponse](data=vt, message=get_message("create_success", lang))
 
 @router.post(
-    "/", 
+    "", 
     response_model=schemas.SuccessResponse[schemas.VehicleTypeResponse],
     summary="Create Vehicle Type",
     description="Membuat tipe kendaraan baru."
@@ -59,6 +59,27 @@ def create_vehicle_type(payload: schemas.VehicleCreate, request: Request, db: Se
     description="Mengupdate nama tipe kendaraan."
 )
 def update_vehicle_type(vt_id: int, payload: schemas.VehicleUpdate, request: Request, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)):
+    updated = VehicleTypeService.update(db, vt_id, payload.Nama)
+    lang = detect_lang(request)
+    return schemas.SuccessResponse[schemas.VehicleTypeResponse](data=updated, message=get_message("vehicle_type_update_success", lang))
+
+@router.patch(
+    "/{vt_id}", 
+    response_model=schemas.SuccessResponse[schemas.VehicleTypeResponse],
+    summary="Patch Vehicle Type",
+    description="Mengupdate nama tipe kendaraan secara parsial."
+)
+def patch_vehicle_type(
+    vt_id: int, 
+    payload: schemas.VehicleTypeUpdate, 
+    request: Request, 
+    db: Session = Depends(get_db), 
+    _u: UserModel = Depends(auth.get_current_user)
+):
+    # Cek jika nama ada
+    if payload.Nama is None:
+         raise HTTPException(status_code=400, detail="Tidak ada data yang dikirim")
+         
     updated = VehicleTypeService.update(db, vt_id, payload.Nama)
     lang = detect_lang(request)
     return schemas.SuccessResponse[schemas.VehicleTypeResponse](data=updated, message=get_message("vehicle_type_update_success", lang))

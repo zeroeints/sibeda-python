@@ -216,6 +216,29 @@ class VehicleService:
             "has_more": has_more,
             "stat": {"total_data": total}
         }
+    
+    @staticmethod
+    def get_by_user_id(db: Session, user_id: int) -> List[VehicleModel]:
+        """
+        Mendapatkan list kendaraan yang di-assign ke user tertentu.
+        """
+        # Cek user exists
+        user = db.query(models.User).filter(models.User.ID == user_id).first()
+        if not user:
+            raise HTTPException(404, "User tidak ditemukan")
+
+        # Query via relationship table
+        vehicles = db.query(VehicleModel).join(
+            models.user_vehicle_association,
+            models.user_vehicle_association.c.vehicle_id == VehicleModel.ID
+        ).filter(
+            models.user_vehicle_association.c.user_id == user_id
+        ).options(
+            joinedload(VehicleModel.vehicle_type),
+            joinedload(VehicleModel.dinas)
+        ).all()
+        
+        return vehicles
 
     @staticmethod
     def assign_user(db: Session, vehicle_id: int, user_id: int) -> None:

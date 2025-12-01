@@ -2,6 +2,7 @@
 # type: ignore
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
 import controller.auth as auth
 import schemas.schemas as schemas
 from database.database import SessionLocal
@@ -20,7 +21,7 @@ def get_db():
         db.close()
 
 @router.post(
-    "/", 
+    "", 
     response_model=schemas.SuccessResponse[schemas.UserResponse],
     summary="Register New User",
     description="Mendaftarkan pengguna baru ke dalam sistem. OTP verifikasi akan dikirimkan ke email."
@@ -43,18 +44,19 @@ def register_user_alias(user: schemas.UserCreate, db: Session = Depends(get_db))
     return register_user(user, db)
 
 @router.get(
-    "/", 
+    "", 
     response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.UserResponse]],
     summary="List Users (Paged)"
 )
 def read_users(
     skip: int = Query(0, ge=0), 
-    limit: int = Query(10, ge=1, le=1000), 
+    limit: int = Query(10, ge=1, le=1000),
+    dinas_id: int | None = Query(None, description="Filter by Dinas ID"), # [UPDATED] Added dinas_id param
     db: Session = Depends(get_db), 
     _current_user: UserModel = Depends(auth.get_current_user)
 ) -> schemas.SuccessResponse[schemas.PagedListData[schemas.UserResponse]]:
     
-    result = UserService.list(db, skip=skip, limit=limit)
+    result = UserService.list(db, skip=skip, limit=limit, dinas_id=dinas_id)
     return schemas.SuccessResponse[schemas.PagedListData[schemas.UserResponse]](
         data=result, 
         message=get_message("create_success", None)
@@ -154,4 +156,57 @@ def search_users_detailed(
     return schemas.SuccessResponse[schemas.PagedListData[schemas.UserDetailResponse]](
         data=result, 
         message=f"Ditemukan {len(data)} dari {total} pengguna"
+    )
+
+@router.get(
+    "/vehicle/{vehicle_id}", 
+    response_model=schemas.SuccessResponse[List[schemas.UserResponse]],
+    summary="Get Users Assigned to Vehicle",
+    description="Melihat daftar user (pemegang) yang di-assign ke kendaraan tertentu."
+)
+def get_users_by_vehicle_id(
+    vehicle_id: int,
+    db: Session = Depends(get_db),
+    _user: UserModel = Depends(auth.get_current_user)
+):
+    users = UserService.get_by_vehicle_id(db, vehicle_id)
+    return schemas.SuccessResponse[List[schemas.UserResponse]](
+        data=users,
+        message=f"Ditemukan {len(users)} pemegang kendaraan {vehicle_id}"
+    )
+
+@router.post(
+    "/{user_id}/assign-vehicle",
+    response_model=schemas.SuccessResponse[schemas.Message],
+    summary="Assign Vehicle to User",
+    description="Menambahkan kendaraan ke daftar kendaraan yang dipegang user."
+)
+def assign_vehicle_to_user(
+    user_id: int,
+    payload: schemas.UserAssignmentRequest,
+    db: Session = Depends(get_db),
+    _user: UserModel = Depends(auth.get_current_user)
+):
+    UserService.assign_vehicle(db, user_id, payload.VehicleID)
+    return schemas.SuccessResponse[schemas.Message](
+        data=schemas.Message(detail="Kendaraan berhasil di-assign ke user"),
+        message="Success"
+    )
+
+@router.post(
+    "/{user_id}/unassign-vehicle",
+    response_model=schemas.SuccessResponse[schemas.Message],
+    summary="Unassign Vehicle from User",
+    description="Menghapus kendaraan dari daftar kendaraan yang dipegang user."
+)
+def unassign_vehicle_from_user(
+    user_id: int,
+    payload: schemas.UserAssignmentRequest,
+    db: Session = Depends(get_db),
+    _user: UserModel = Depends(auth.get_current_user)
+):
+    UserService.unassign_vehicle(db, user_id, payload.VehicleID)
+    return schemas.SuccessResponse[schemas.Message](
+        data=schemas.Message(detail="Kendaraan berhasil di-unassign dari user"),
+        message="Success"
     )

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 import model.models as models
 from model.models import Wallet as WalletModel
-from schemas.schemas import WalletCreate
+from schemas.schemas import WalletCreate, WalletUpdate
 
 class WalletService:
     @staticmethod
@@ -37,16 +37,24 @@ class WalletService:
         return w
 
     @staticmethod
-    def update(db: Session, wallet_id: int, payload: WalletCreate) -> WalletModel:
+    def update(db: Session, wallet_id: int, payload: WalletCreate | WalletUpdate) -> WalletModel:
         w = db.query(WalletModel).filter(WalletModel.ID == wallet_id).first()
         if not w:
             raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
-        if payload.UserID != w.UserID:
-            raise HTTPException(status_code=400, detail="UserID tidak boleh diubah")
-        if not db.query(models.WalletType).filter(models.WalletType.ID == payload.WalletTypeID).first():
-            raise HTTPException(status_code=400, detail="WalletTypeID tidak ditemukan")
-        setattr(w, "WalletTypeID", payload.WalletTypeID)
-        setattr(w, "Saldo", payload.Saldo)
+        
+        # Logic untuk partial update
+        if hasattr(payload, "UserID") and payload.UserID is not None:
+             if payload.UserID != w.UserID:
+                raise HTTPException(status_code=400, detail="UserID tidak boleh diubah")
+        
+        if hasattr(payload, "WalletTypeID") and payload.WalletTypeID is not None:
+            if not db.query(models.WalletType).filter(models.WalletType.ID == payload.WalletTypeID).first():
+                raise HTTPException(status_code=400, detail="WalletTypeID tidak ditemukan")
+            setattr(w, "WalletTypeID", payload.WalletTypeID)
+
+        if hasattr(payload, "Saldo") and payload.Saldo is not None:
+            setattr(w, "Saldo", payload.Saldo)
+
         db.commit()
         db.refresh(w)
         return w

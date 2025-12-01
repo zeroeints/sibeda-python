@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import extract, func
 from fastapi import HTTPException, UploadFile
 import model.models as models
-from model.models import Report as ReportModel, ReportLog as ReportLogModel, ReportStatusEnum
+from model.models import Report as ReportModel, ReportLog as ReportLogModel, ReportStatusEnum, Submission as SubmissionModel
 from schemas.schemas import ReportCreate
 from utils.file_upload import save_report_photo
 
@@ -29,6 +29,7 @@ class ReportService:
         vehicle_id: int | None = None,
         month: int | None = None,
         year: int | None = None,
+        dinas_id: int | None = None, # [UPDATED] Param baru
         limit: int = 10,
         offset: int = 0
     ) -> Dict[str, Any]:
@@ -39,18 +40,20 @@ class ReportService:
         if vehicle_id: q = q.filter(ReportModel.VehicleID == vehicle_id)
         if month: q = q.filter(extract('month', ReportModel.Timestamp) == month)
         if year: q = q.filter(extract('year', ReportModel.Timestamp) == year)
+        if dinas_id: q = q.filter(ReportModel.DinasID == dinas_id) # [UPDATED] Logic
 
         q = q.order_by(ReportModel.Timestamp.desc())
         
         # Pagination Data
         data = q.offset(offset).limit(limit).all()
 
-        # Count Total (Optimized query reuse)
+        # Count Total
         count_q = db.query(func.count(ReportModel.ID))
         if user_id: count_q = count_q.filter(ReportModel.UserID == user_id)
         if vehicle_id: count_q = count_q.filter(ReportModel.VehicleID == vehicle_id)
         if month: count_q = count_q.filter(extract('month', ReportModel.Timestamp) == month)
         if year: count_q = count_q.filter(extract('year', ReportModel.Timestamp) == year)
+        if dinas_id: count_q = count_q.filter(ReportModel.DinasID == dinas_id) # [UPDATED] Logic
         
         total_records = count_q.scalar() or 0
         has_more = (offset + len(data)) < total_records
@@ -61,6 +64,7 @@ class ReportService:
         if vehicle_id: stat_q = stat_q.filter(ReportModel.VehicleID == vehicle_id)
         if month: stat_q = stat_q.filter(extract('month', ReportModel.Timestamp) == month)
         if year: stat_q = stat_q.filter(extract('year', ReportModel.Timestamp) == year)
+        if dinas_id: stat_q = stat_q.filter(ReportModel.DinasID == dinas_id) # [UPDATED] Logic
         
         stats_result = stat_q.group_by(ReportModel.Status).all()
         
@@ -81,12 +85,20 @@ class ReportService:
             "year": year,
             "stat": stat_dict
         }
+
     @staticmethod
-    def get_my_reports(db: Session, user_id: int, vehicle_id: int | None = None, limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+    def get_my_reports(
+        db: Session, 
+        user_id: int, 
+        vehicle_id: int | None = None,
+        month: int | None = None, # [UPDATED] Param baru
+        year: int | None = None,  # [UPDATED] Param baru
+        limit: int = 100, 
+        offset: int = 0
+    ) -> Dict[str, Any]:
         """
-        Versi Optimized: Menggunakan JOIN ke Submission untuk menghindari N+1 Query.
+        Versi Optimized dengan filter Month/Year
         """
-        # Kita select ReportModel (full object) DAN kolom spesifik dari Submission
         q = db.query(
             ReportModel, 
             SubmissionModel.Status.label("sub_status"),
@@ -94,7 +106,6 @@ class ReportService:
         ).outerjoin(
             SubmissionModel, SubmissionModel.KodeUnik == ReportModel.KodeUnik
         ).options(
-            # Eager load relasi Report agar tidak lazy load saat di-loop
             joinedload(ReportModel.user),
             joinedload(ReportModel.dinas),
             joinedload(ReportModel.vehicle).joinedload(models.Vehicle.vehicle_type),
@@ -105,39 +116,22 @@ class ReportService:
         q = q.filter(ReportModel.UserID == user_id)
         if vehicle_id:
             q = q.filter(ReportModel.VehicleID == vehicle_id)
+        # [UPDATED] Filter logic
+        if month: q = q.filter(extract('month', ReportModel.Timestamp) == month)
+        if year: q = q.filter(extract('year', ReportModel.Timestamp) == year)
         
-        # Pagination Stats
-        total_records = q.count() # Count query (bisa dioptimalkan lagi tapi ini sudah lebih baik)
+        total_records = q.count()
         
-        # Fetch Data
         q = q.order_by(ReportModel.Timestamp.desc())
         raw_results = q.offset(offset).limit(limit).all()
         
-        # Construct Response
-        # Kita harus menggabungkan object ReportModel dengan data tambahan dari Submission
         result_list = []
         for report, sub_status, sub_total in raw_results:
-            # Karena kita pakai Pydantic from_attributes=True, kita bisa passing object SQLAlchemy
-            # Namun untuk field tambahan (SubmissionStatus), kita perlu set secara manual 
-            # atau bungkus ke dict jika model Pydantic mendukungnya.
-            
-            # Cara paling aman: Convert model ke dict, lalu update field tambahan
-            # Note: Ini sedikit expensive dibanding passing object, tapi aman.
-            # Alternatif: Buat wrapper class sementara.
-            
-            # Kita gunakan pendekatan attribute setting sementara pada instance (hacky but fast)
-            # atau mapping manual field-field penting.
-            
-            # Pendekatan Mapping Manual (Explicit is better than implicit bugs)
-            vehicle_obj = report.vehicle
-            vehicle_type_name = vehicle_obj.vehicle_type.Nama if vehicle_obj and vehicle_obj.vehicle_type else None
-            
             item = {
-                # Fields from ReportModel
                 "ID": report.ID,
                 "KodeUnik": report.KodeUnik,
-                "User": report.user, # Pydantic akan handle nested serialization
-                "Vehicle": report.vehicle, # Pydantic akan handle nested serialization
+                "User": report.user,
+                "Vehicle": report.vehicle,
                 "Dinas": report.dinas,
                 "AmountRupiah": report.AmountRupiah,
                 "AmountLiter": report.AmountLiter,
@@ -152,8 +146,6 @@ class ReportService:
                 "InvoicePhotoPath": report.InvoicePhotoPath,
                 "MyPertaminaPhotoPath": report.MyPertaminaPhotoPath,
                 "Logs": report.logs,
-                
-                # Fields from Join
                 "SubmissionStatus": sub_status.value if sub_status else None,
                 "SubmissionTotal": float(sub_total) if sub_total else None
             }
@@ -166,8 +158,8 @@ class ReportService:
             "limit": limit,
             "offset": offset,
             "has_more": has_more,
-            "month": None,
-            "year": None,
+            "month": month,
+            "year": year,
             "stat": {"total_data": total_records}
         }
 

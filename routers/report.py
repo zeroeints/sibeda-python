@@ -20,13 +20,14 @@ def get_db():
         db.close()
 
 @router.get(
-    "/", 
+    "", 
     response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.ReportResponse]],
     summary="List Reports (Paged)"
 )
 def list_reports(
     user_id: int | None = None, 
     vehicle_id: int | None = None, 
+    dinas_id: int | None = Query(None, description="Filter by Dinas ID"), # [UPDATED] Param baru
     month: int | None = Query(None, ge=1, le=12),
     year: int | None = Query(None, ge=2000, le=2100),
     limit: int = Query(10, ge=1, le=1000),
@@ -36,7 +37,7 @@ def list_reports(
 ) -> schemas.SuccessResponse[schemas.PagedListData[schemas.ReportResponse]]:
     
     result = ReportService.list(
-        db, user_id, vehicle_id, month, year, limit, offset
+        db, user_id, vehicle_id, month, year, dinas_id, limit, offset
     )
     return schemas.SuccessResponse[schemas.PagedListData[schemas.ReportResponse]](
         data=result, 
@@ -50,12 +51,14 @@ def list_reports(
 )
 def get_my_reports(
     vehicle_id: int | None = None,
+    month: int | None = Query(None, ge=1, le=12), # [UPDATED] Param baru
+    year: int | None = Query(None, ge=2000, le=2100), # [UPDATED] Param baru
     limit: int = Query(10, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _u: UserModel = Depends(auth.get_current_user)
 ) -> schemas.SuccessResponse[schemas.PagedListData[schemas.MyReportResponse]]:
-    result = ReportService.get_my_reports(db, _u.ID, vehicle_id, limit, offset)
+    result = ReportService.get_my_reports(db, _u.ID, vehicle_id, month, year, limit, offset)
     return schemas.SuccessResponse[schemas.PagedListData[schemas.MyReportResponse]](
         data=result,
         message="Daftar laporan saya berhasil diambil"
@@ -189,6 +192,20 @@ def update_report_status(
         data=updated_report, # type: ignore
         message=f"Status report berhasil diubah menjadi {status_update.Status.value}"
     )
+
+@router.patch(
+    "/{report_id}/status", 
+    response_model=schemas.SuccessResponse[schemas.ReportResponse],
+    summary="Patch Report Status",
+    description="Alias untuk mengubah status report."
+)
+def patch_report_status(
+    report_id: int,
+    status_update: schemas.ReportStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.ReportResponse]:
+    return update_report_status(report_id, status_update, db, current_user)
 
 @router.get(
     "/{report_id}/logs", 

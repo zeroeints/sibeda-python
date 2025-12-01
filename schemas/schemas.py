@@ -271,6 +271,9 @@ class VehicleResponse(BaseModel):
 class VehicleAssignmentRequest(BaseModel):
     UserID: int
 
+class UserAssignmentRequest(BaseModel):
+    VehicleID: int
+
 class RefuelHistoryItem(BaseModel):
     ID: int
     KodeUnik: str
@@ -460,3 +463,12 @@ class QRGetResponse(BaseModel):
 
 class QRScanRequest(BaseModel):
     kode_unik: str
+
+class WalletUpdate(BaseModel):
+    UserID: int | None = None
+    WalletTypeID: int | None = None
+    Saldo: float | None = None
+
+# Tambahkan Class ini untuk VehicleType
+class VehicleTypeUpdate(BaseModel):
+    Nama: str | None = None

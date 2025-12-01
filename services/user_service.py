@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from fastapi import HTTPException
 import model.models as models
 import controller.auth as auth
@@ -49,17 +49,26 @@ class UserService:
         return user
 
     @staticmethod
-    def list(db: Session, skip: int = 0, limit: int = 10) -> Dict[str, Any]:
-        """List users dengan eager loading Dinas"""
+    def list(db: Session, skip: int = 0, limit: int = 10, dinas_id: int | None = None) -> Dict[str, Any]:
+        """List users dengan eager loading Dinas dan filter optional dinas_id"""
         q = db.query(models.User).options(joinedload(models.User.dinas))
+        
+        # [UPDATED] Filter by DinasID
+        if dinas_id is not None:
+            q = q.filter(models.User.DinasID == dinas_id)
         
         total_records = q.count()
         data = q.order_by(models.User.ID.desc()).offset(skip).limit(limit).all()
         has_more = (skip + len(data)) < total_records
         
-        # Stats: Verified vs Not
+        # Stats: Verified vs Not (Filtered by dinas if applied)
         stat_dict = {"total_data": total_records}
-        stats_ver = db.query(models.User.isVerified, func.count(models.User.ID)).group_by(models.User.isVerified).all()
+        
+        # Re-query for stats to respect filter
+        stat_q = db.query(models.User.isVerified, func.count(models.User.ID))
+        if dinas_id is not None:
+            stat_q = stat_q.filter(models.User.DinasID == dinas_id)
+        stats_ver = stat_q.group_by(models.User.isVerified).all()
         
         stat_dict["total_verified"] = 0
         stat_dict["total_unverified"] = 0
@@ -277,3 +286,60 @@ class UserService:
             "Saldo": float(wallet.Saldo),
             "WalletType": wallet.wallet_type.Nama if wallet.wallet_type else None
         }
+    
+    @staticmethod
+    def get_by_vehicle_id(db: Session, vehicle_id: int) -> List[models.User]:
+        """
+        Mendapatkan list user yang memegang kendaraan tertentu.
+        """
+        # Cek vehicle exists
+        veh = db.query(models.Vehicle).filter(models.Vehicle.ID == vehicle_id).first()
+        if not veh:
+            raise HTTPException(404, "Kendaraan tidak ditemukan")
+
+        users = db.query(models.User).join(
+            models.user_vehicle_association,
+            models.user_vehicle_association.c.user_id == models.User.ID
+        ).filter(
+            models.user_vehicle_association.c.vehicle_id == vehicle_id
+        ).options(
+            joinedload(models.User.dinas)
+        ).all()
+        
+        return users
+    
+    @staticmethod
+    def assign_vehicle(db: Session, user_id: int, vehicle_id: int) -> None:
+        """
+        Menambahkan hak akses kendaraan ke user tertentu.
+        """
+        user = db.query(models.User).filter(models.User.ID == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User tidak ditemukan")
+            
+        vehicle = db.query(models.Vehicle).filter(models.Vehicle.ID == vehicle_id).first()
+        if not vehicle:
+            raise HTTPException(status_code=404, detail="Kendaraan tidak ditemukan")
+            
+        # Cek apakah sudah di-assign sebelumnya untuk menghindari duplikasi
+        if vehicle not in user.vehicles:
+            user.vehicles.append(vehicle)
+            db.commit()
+
+    @staticmethod
+    def unassign_vehicle(db: Session, user_id: int, vehicle_id: int) -> None:
+        """
+        Mencabut hak akses kendaraan dari user tertentu.
+        """
+        user = db.query(models.User).filter(models.User.ID == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User tidak ditemukan")
+
+        vehicle = db.query(models.Vehicle).filter(models.Vehicle.ID == vehicle_id).first()
+        if not vehicle:
+            raise HTTPException(status_code=404, detail="Kendaraan tidak ditemukan")
+            
+        # Hapus jika ada dalam list
+        if vehicle in user.vehicles:
+            user.vehicles.remove(vehicle)
+            db.commit()

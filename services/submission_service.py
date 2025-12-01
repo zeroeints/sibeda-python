@@ -29,6 +29,7 @@ class SubmissionService:
         status: str | None = None,
         month: int | None = None,
         year: int | None = None,
+        dinas_id: int | None = None, # [UPDATED] Add param
         limit: int = 10,
         offset: int = 0
     ) -> Dict[str, Any]:
@@ -41,19 +42,21 @@ class SubmissionService:
         if status: q = q.filter(SubmissionModel.Status == status)
         if month: q = q.filter(extract('month', SubmissionModel.created_at) == month)
         if year: q = q.filter(extract('year', SubmissionModel.created_at) == year)
+        if dinas_id: q = q.filter(SubmissionModel.DinasID == dinas_id) # [UPDATED] Filter logic
         
         q = q.order_by(SubmissionModel.created_at.desc())
         
         # Pagination Data
         data = q.offset(offset).limit(limit).all()
         
-        # Count Query (Optimized: reuse filters logic ideally, but simplified here)
+        # Count Query
         count_q = db.query(func.count(SubmissionModel.ID))
         if creator_id: count_q = count_q.filter(SubmissionModel.CreatorID == creator_id)
         if receiver_id: count_q = count_q.filter(SubmissionModel.ReceiverID == receiver_id)
         if status: count_q = count_q.filter(SubmissionModel.Status == status)
         if month: count_q = count_q.filter(extract('month', SubmissionModel.created_at) == month)
         if year: count_q = count_q.filter(extract('year', SubmissionModel.created_at) == year)
+        if dinas_id: count_q = count_q.filter(SubmissionModel.DinasID == dinas_id) # [UPDATED] Filter logic
         
         total_records = count_q.scalar() or 0
         has_more = (offset + len(data)) < total_records
@@ -62,9 +65,9 @@ class SubmissionService:
         stat_q = db.query(SubmissionModel.Status, func.count(SubmissionModel.ID))
         if creator_id: stat_q = stat_q.filter(SubmissionModel.CreatorID == creator_id)
         if receiver_id: stat_q = stat_q.filter(SubmissionModel.ReceiverID == receiver_id)
-        # Apply date filter to stats as well
         if month: stat_q = stat_q.filter(extract('month', SubmissionModel.created_at) == month)
         if year: stat_q = stat_q.filter(extract('year', SubmissionModel.created_at) == year)
+        if dinas_id: stat_q = stat_q.filter(SubmissionModel.DinasID == dinas_id) # [UPDATED] Filter logic
         
         stats_result = stat_q.group_by(SubmissionModel.Status).all()
         
@@ -192,3 +195,39 @@ class SubmissionService:
         q = q.filter(extract('month', SubmissionModel.created_at) == month)
         q = q.filter(extract('year', SubmissionModel.created_at) == year)
         return q.order_by(SubmissionModel.created_at.desc()).all()
+    
+    @staticmethod
+    def get_my_submissions(
+        db: Session, 
+        user_id: int, 
+        month: int | None = None, 
+        year: int | None = None, 
+        limit: int = 10, 
+        offset: int = 0
+    ) -> Dict[str, Any]:
+        """Get submissions created by user"""
+        q = SubmissionService._get_base_query(db)
+        q = q.filter(SubmissionModel.CreatorID == user_id)
+        
+        if month: q = q.filter(extract('month', SubmissionModel.created_at) == month)
+        if year: q = q.filter(extract('year', SubmissionModel.created_at) == year)
+        
+        q = q.order_by(SubmissionModel.created_at.desc())
+        
+        total_records = db.query(func.count(SubmissionModel.ID)).filter(SubmissionModel.CreatorID == user_id)
+        if month: total_records = total_records.filter(extract('month', SubmissionModel.created_at) == month)
+        if year: total_records = total_records.filter(extract('year', SubmissionModel.created_at) == year)
+        total_count = total_records.scalar() or 0
+        
+        data = q.offset(offset).limit(limit).all()
+        has_more = (offset + len(data)) < total_count
+        
+        return {
+            "list": data,
+            "limit": limit,
+            "offset": offset,
+            "has_more": has_more,
+            "month": month,
+            "year": year,
+            "stat": {"total_data": total_count}
+        }

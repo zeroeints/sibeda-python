@@ -40,14 +40,14 @@ def create_wallet_type(payload: schemas.WalletTypeBase, db: Session = Depends(ge
 
 # Wallet endpoints
 @router.get(
-    "/", 
-    response_model=schemas.SuccessResponse[schemas.WalletResponse],
+    "", 
+    response_model=schemas.SuccessListResponse[schemas.WalletResponse],
     summary="List Wallets",
     description="Mendapatkan daftar semua wallet."
 )
-def list_wallets(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletResponse]:
+def list_wallets(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.WalletResponse]:
     data = WalletService.list(db)
-    return schemas.SuccessResponse[schemas.WalletResponse](data=data, message=get_message("create_success", None))  # type: ignore
+    return schemas.SuccessListResponse[schemas.WalletResponse](data=data, message=get_message("create_success", None))  # type: ignore
 
 @router.get(
     "/{wallet_id}", 
@@ -74,7 +74,7 @@ def get_wallet_by_user(user_id: int, db: Session = Depends(get_db), _u: UserMode
     return schemas.SuccessResponse[schemas.WalletResponse](data=w, message=get_message("create_success", None))
 
 @router.post(
-    "/", 
+    "", 
     response_model=schemas.SuccessResponse[schemas.WalletResponse],
     summary="Create Wallet",
     description="Membuat wallet baru untuk user."
@@ -90,6 +90,21 @@ def create_wallet(payload: schemas.WalletCreate, db: Session = Depends(get_db), 
     description="Mengupdate informasi wallet (saldo/tipe)."
 )
 def update_wallet(wallet_id: int, payload: schemas.WalletCreate, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletResponse]:
+    updated = WalletService.update(db, wallet_id, payload)
+    return schemas.SuccessResponse[schemas.WalletResponse](data=updated, message=get_message("update_success", None))
+
+@router.patch(
+    "/{wallet_id}", 
+    response_model=schemas.SuccessResponse[schemas.WalletResponse],
+    summary="Patch Wallet",
+    description="Mengupdate informasi wallet (saldo/tipe) secara parsial."
+)
+def patch_wallet(
+    wallet_id: int, 
+    payload: schemas.WalletUpdate, 
+    db: Session = Depends(get_db), 
+    _u: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.WalletResponse]:
     updated = WalletService.update(db, wallet_id, payload)
     return schemas.SuccessResponse[schemas.WalletResponse](data=updated, message=get_message("update_success", None))
 
