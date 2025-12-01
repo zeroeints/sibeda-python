@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 import model.models as models
 import logging
 from rich.logging import RichHandler
@@ -9,6 +10,7 @@ from routers import qr as qr_router
 from database.database import SessionLocal, engine
 from contextlib import asynccontextmanager
 from middleware import RequestLoggingMiddleware, LanguagePrefixMiddleware, add_exception_handlers
+from pathlib import Path
 
 # --- TAMBAHKAN KONFIGURASI INI SEBELUM APP DIBUAT ---
 logging.basicConfig(
@@ -32,6 +34,11 @@ async def lifespan(app: FastAPI):
     # Shutdown: add cleanup if needed.
 
 app = FastAPI(title="SIBEDA API", version="0.1.0", lifespan=lifespan)
+
+# Mount static files untuk serve uploaded images
+assets_path = Path("assets")
+if assets_path.exists():
+    app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 # Register middleware
 app.add_middleware(LanguagePrefixMiddleware)

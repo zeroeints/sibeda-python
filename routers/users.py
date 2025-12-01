@@ -1,3 +1,5 @@
+# pyright: reportGeneralTypeIssues=false, reportUnknownMemberType=false
+# type: ignore
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 import controller.auth as auth

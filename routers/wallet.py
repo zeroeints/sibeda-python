@@ -18,10 +18,10 @@ def get_db():
         db.close()
 
 # Wallet Type endpoints
-@router.get("/types", response_model=schemas.SuccessListResponse[schemas.WalletTypeResponse])
+@router.get("/type", response_model=schemas.SuccessListResponse[schemas.WalletTypeResponse])
 def list_wallet_types(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.WalletTypeResponse]:
     data = WalletTypeService.list(db)
-    return schemas.SuccessListResponse[schemas.WalletTypeResponse](data=data, message=get_message("create_success", None))
+    return schemas.SuccessListResponse[schemas.WalletTypeResponse](data=data, message=get_message("create_success", None))  # type: ignore
 
 @router.post("/types", response_model=schemas.SuccessResponse[schemas.WalletTypeResponse])
 def create_wallet_type(payload: schemas.WalletTypeBase, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletTypeResponse]:
@@ -32,7 +32,7 @@ def create_wallet_type(payload: schemas.WalletTypeBase, db: Session = Depends(ge
 @router.get("/", response_model=schemas.SuccessListResponse[schemas.WalletResponse])
 def list_wallets(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.WalletResponse]:
     data = WalletService.list(db)
-    return schemas.SuccessListResponse[schemas.WalletResponse](data=data, message=get_message("create_success", None))
+    return schemas.SuccessListResponse[schemas.WalletResponse](data=data, message=get_message("create_success", None))  # type: ignore
 
 @router.get("/{wallet_id}", response_model=schemas.SuccessResponse[schemas.WalletResponse])
 def get_wallet(wallet_id: int, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletResponse]:

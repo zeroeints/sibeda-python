@@ -19,7 +19,7 @@ def get_db():
 @router.get("/", response_model=schemas.SuccessListResponse[schemas.VehicleResponse])
 def list_vehicles(db: Session = Depends(get_db), _user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.VehicleResponse]:
     data = VehicleService.list(db)
-    return schemas.SuccessListResponse[schemas.VehicleResponse](data=data, message=get_message("create_success", None))
+    return schemas.SuccessListResponse[schemas.VehicleResponse](data=data, message=get_message("create_success", None))  # type: ignore
 
 @router.post("/", response_model=schemas.SuccessResponse[schemas.VehicleResponse])
 def create_vehicle(payload: schemas.VehicleCreate, db: Session = Depends(get_db), _user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.VehicleResponse]:

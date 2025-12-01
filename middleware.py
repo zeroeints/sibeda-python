@@ -1,5 +1,6 @@
+# pyright: reportGeneralTypeIssues=false, reportUnknownMemberType=false
+# type: ignore
 import time
-import traceback
 import uuid
 import json
 from typing import Callable, Awaitable, Dict, Any, cast, Mapping
@@ -16,7 +17,6 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 from rich.theme import Theme
 
 from config import get_settings
@@ -49,6 +49,7 @@ def _as_bytes(buf: bytes | bytearray | memoryview) -> bytes:
 def _to_safe_json(obj: Any) -> Any:
     """Recursively convert non-JSON-serializable objects (like bytes) into safe forms.
     - bytes/bytearray/memoryview -> try utf-8 decode, else base64 string
+    - Exception objects -> convert to string
     - dict/list/tuple/set -> recurse
     """
     import base64
@@ -58,6 +59,9 @@ def _to_safe_json(obj: Any) -> Any:
             return buf.decode("utf-8")
         except Exception:
             return base64.b64encode(buf).decode("ascii")
+    # Handle Exception objects (ValueError, etc.)
+    if isinstance(obj, Exception):
+        return str(obj)
     if isinstance(obj, dict):
         d = cast(Mapping[Any, Any], obj)
         return {k: _to_safe_json(v) for k, v in d.items()}

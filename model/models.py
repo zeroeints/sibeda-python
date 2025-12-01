@@ -37,6 +37,13 @@ class SubmissionStatusEnum(enum.Enum):
     Pending = "Pending"
 
 
+class ReportStatusEnum(enum.Enum):
+    Pending = "Pending"
+    Reviewed = "Reviewed"
+    Accepted = "Accepted"
+    Rejected = "Rejected"
+
+
 class PurposeEnum(enum.Enum):
     register = "register"
     password_reset = "password_reset"
@@ -209,6 +216,7 @@ class Report(Base):
     AmountRupiah = Column(Numeric(15, 2), nullable=False)
     AmountLiter = Column(Numeric(10, 3), nullable=False)
     Description = Column(Text)
+    Status = Column(SAEnum(ReportStatusEnum), nullable=False, server_default=ReportStatusEnum.Pending.value)
     Timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     Latitude = Column(Numeric(10, 8))
     Longitude = Column(Numeric(11, 8))
@@ -220,4 +228,18 @@ class Report(Base):
 
     user = relationship("User", back_populates="reports")
     vehicle = relationship("Vehicle", back_populates="reports")
+    logs = relationship("ReportLog", back_populates="report", cascade="all, delete-orphan")
+
+
+class ReportLog(Base):
+    __tablename__ = "ReportLog"
+
+    ID = Column(Integer, primary_key=True, autoincrement=True)
+    ReportID = Column(Integer, ForeignKey("Report.ID", ondelete="CASCADE"), nullable=False)
+    Status = Column(SAEnum(ReportStatusEnum), nullable=False)
+    Timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    UpdatedByUserID = Column(Integer, ForeignKey("User.ID"), nullable=True)  # User who updated the status
+    Notes = Column(Text, nullable=True)  # Optional notes about the status change
+
+    report = relationship("Report", back_populates="logs")
 

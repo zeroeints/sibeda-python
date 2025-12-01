@@ -1,12 +1,11 @@
 from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 from typing import Generic, TypeVar
-from pydantic.generics import GenericModel
 from datetime import datetime
 
 T = TypeVar("T")
 
-class SuccessResponse(GenericModel, Generic[T]):
+class SuccessResponse(BaseModel, Generic[T]):
     success: bool = True
     data: T
     message: str | None = None
@@ -14,7 +13,7 @@ class SuccessResponse(GenericModel, Generic[T]):
 class SuccessListResponse(SuccessResponse[list[T]], Generic[T]):  # convenience alias for lists
     pass
 
-class PaginatedResponse(GenericModel, Generic[T]):
+class PaginatedResponse(BaseModel, Generic[T]):
     success: bool = True
     data: list[T]
     message: str | None = None
@@ -33,6 +32,12 @@ class SubmissionStatusEnum(str, Enum):
     Accepted = "Accepted"
     Rejected = "Rejected"
     Pending = "Pending"
+
+class ReportStatusEnum(str, Enum):
+    Pending = "Pending"
+    Reviewed = "Reviewed"
+    Accepted = "Accepted"
+    Rejected = "Rejected"
 
 class UserBase(BaseModel):
     NIP: str = Field(..., min_length=18, max_length=50, description="Nomor Induk Pegawai minimal 18 karakter")
@@ -307,12 +312,25 @@ class ReportBase(BaseModel):
     AmountRupiah: float
     AmountLiter: float
     Description: str | None = None
+    Status: ReportStatusEnum | None = None
     Latitude: float | None = None
     Longitude: float | None = None
     VehiclePhysicalPhotoPath: str | None = None
     OdometerPhotoPath: str | None = None
     InvoicePhotoPath: str | None = None
     MyPertaminaPhotoPath: str | None = None
+    Odometer: int | None = None
+
+class ReportCreateForm(BaseModel):
+    """Schema untuk create report dengan form data (tanpa file)"""
+    KodeUnik: str
+    UserID: int
+    VehicleID: int
+    AmountRupiah: float
+    AmountLiter: float
+    Description: str | None = None
+    Latitude: float | None = None
+    Longitude: float | None = None
     Odometer: int | None = None
 
 class ReportCreate(ReportBase):
@@ -326,6 +344,7 @@ class ReportUpdate(BaseModel):
     AmountRupiah: float | None = None
     AmountLiter: float | None = None
     Description: str | None = None
+    Status: ReportStatusEnum | None = None
     Latitude: float | None = None
     Longitude: float | None = None
     VehiclePhysicalPhotoPath: str | None = None
@@ -336,6 +355,7 @@ class ReportUpdate(BaseModel):
 
 class ReportResponse(ReportBase):
     ID: int
+    Status: ReportStatusEnum | None = None
     Timestamp: datetime | None = None
 
     class Config:
@@ -353,6 +373,7 @@ class MyReportResponse(BaseModel):
     AmountRupiah: float
     AmountLiter: float
     Description: str | None = None
+    Status: str
     Timestamp: str | None = None
     Latitude: float | None = None
     Longitude: float | None = None
@@ -399,6 +420,19 @@ class PhotoPaths(BaseModel):
     Invoice: str | None = None
     MyPertamina: str | None = None
 
+class ReportLogResponse(BaseModel):
+    """Response untuk log perubahan status report"""
+    ID: int
+    ReportID: int
+    Status: str
+    Timestamp: str
+    UpdatedByUserID: int | None = None
+    UpdatedByUserName: str | None = None
+    Notes: str | None = None
+
+    class Config:
+        from_attributes = True
+
 class ReportDetailResponse(BaseModel):
     """Response detail lengkap report"""
     ID: int
@@ -411,15 +445,22 @@ class ReportDetailResponse(BaseModel):
     AmountRupiah: float
     AmountLiter: float
     Description: str | None = None
+    Status: str
     Timestamp: str | None = None
     Latitude: float | None = None
     Longitude: float | None = None
     Odometer: int | None = None
     Photos: PhotoPaths
     Submission: SubmissionInfo | None = None
+    Logs: list[ReportLogResponse] = []  # History tracking perubahan status
 
     class Config:
         from_attributes = True
+
+class ReportStatusUpdateRequest(BaseModel):
+    """Request untuk update status report"""
+    Status: ReportStatusEnum
+    Notes: str | None = Field(None, description="Catatan optional untuk perubahan status")
 
 # ------------------- Submission Schemas -------------------
 class SubmissionBase(BaseModel):
