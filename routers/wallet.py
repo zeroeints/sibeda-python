@@ -20,13 +20,13 @@ def get_db():
 # Wallet Type endpoints
 @router.get(
     "/type", 
-    response_model=schemas.SuccessListResponse[schemas.WalletTypeResponse],
+    response_model=schemas.SuccessResponse[schemas.WalletTypeResponse],
     summary="List Wallet Types",
     description="Mendapatkan daftar jenis dompet."
 )
-def list_wallet_types(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.WalletTypeResponse]:
+def list_wallet_types(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletTypeResponse]:
     data = WalletTypeService.list(db)
-    return schemas.SuccessListResponse[schemas.WalletTypeResponse](data=data, message=get_message("create_success", None))  # type: ignore
+    return schemas.SuccessResponse[schemas.WalletTypeResponse](data=data, message=get_message("create_success", None))  # type: ignore
 
 @router.post(
     "/types", 
@@ -41,13 +41,13 @@ def create_wallet_type(payload: schemas.WalletTypeBase, db: Session = Depends(ge
 # Wallet endpoints
 @router.get(
     "/", 
-    response_model=schemas.SuccessListResponse[schemas.WalletResponse],
+    response_model=schemas.SuccessResponse[schemas.WalletResponse],
     summary="List Wallets",
     description="Mendapatkan daftar semua wallet."
 )
-def list_wallets(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.WalletResponse]:
+def list_wallets(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletResponse]:
     data = WalletService.list(db)
-    return schemas.SuccessListResponse[schemas.WalletResponse](data=data, message=get_message("create_success", None))  # type: ignore
+    return schemas.SuccessResponse[schemas.WalletResponse](data=data, message=get_message("create_success", None))  # type: ignore
 
 @router.get(
     "/{wallet_id}", 

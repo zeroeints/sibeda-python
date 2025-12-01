@@ -1,34 +1,175 @@
 from __future__ import annotations
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import extract, func
 from fastapi import HTTPException, UploadFile
 import model.models as models
 from model.models import Report as ReportModel, ReportLog as ReportLogModel, ReportStatusEnum
-from schemas.schemas import ReportCreate, ReportUpdate
-from utils.file_upload import save_report_photo, delete_file
-
-def _get_photo_url(file_path: Optional[str] | Any) -> Optional[str]:
-    if not file_path or str(file_path) == "None":
-        return None
-    return f"http://localhost:8000/{str(file_path).replace(chr(92), '/')}"
+from schemas.schemas import ReportCreate
+from utils.file_upload import save_report_photo
 
 class ReportService:
     @staticmethod
     def _get_base_query(db: Session):
+        """
+        Query dasar dengan Eager Loading lengkap.
+        Menambahkan: Dinas
+        """
         return db.query(ReportModel).options(
             joinedload(ReportModel.user),
+            joinedload(ReportModel.dinas), # [NEW] Load Dinas
             joinedload(ReportModel.vehicle).joinedload(models.Vehicle.vehicle_type),
             joinedload(ReportModel.logs).joinedload(ReportLogModel.updater)
         )
 
     @staticmethod
-    def list(db: Session, user_id: int | None = None, vehicle_id: int | None = None) -> List[ReportModel]:
+    def list(
+        db: Session, 
+        user_id: int | None = None, 
+        vehicle_id: int | None = None,
+        month: int | None = None,
+        year: int | None = None,
+        limit: int = 10,
+        offset: int = 0
+    ) -> Dict[str, Any]:
         q = ReportService._get_base_query(db)
-        if user_id is not None:
-            q = q.filter(ReportModel.UserID == user_id)
-        if vehicle_id is not None:
+
+        # Filters
+        if user_id: q = q.filter(ReportModel.UserID == user_id)
+        if vehicle_id: q = q.filter(ReportModel.VehicleID == vehicle_id)
+        if month: q = q.filter(extract('month', ReportModel.Timestamp) == month)
+        if year: q = q.filter(extract('year', ReportModel.Timestamp) == year)
+
+        q = q.order_by(ReportModel.Timestamp.desc())
+        
+        # Pagination Data
+        data = q.offset(offset).limit(limit).all()
+
+        # Count Total (Optimized query reuse)
+        count_q = db.query(func.count(ReportModel.ID))
+        if user_id: count_q = count_q.filter(ReportModel.UserID == user_id)
+        if vehicle_id: count_q = count_q.filter(ReportModel.VehicleID == vehicle_id)
+        if month: count_q = count_q.filter(extract('month', ReportModel.Timestamp) == month)
+        if year: count_q = count_q.filter(extract('year', ReportModel.Timestamp) == year)
+        
+        total_records = count_q.scalar() or 0
+        has_more = (offset + len(data)) < total_records
+
+        # Statistics
+        stat_q = db.query(ReportModel.Status, func.count(ReportModel.ID))
+        if user_id: stat_q = stat_q.filter(ReportModel.UserID == user_id)
+        if vehicle_id: stat_q = stat_q.filter(ReportModel.VehicleID == vehicle_id)
+        if month: stat_q = stat_q.filter(extract('month', ReportModel.Timestamp) == month)
+        if year: stat_q = stat_q.filter(extract('year', ReportModel.Timestamp) == year)
+        
+        stats_result = stat_q.group_by(ReportModel.Status).all()
+        
+        stat_dict = {"total_data": total_records}
+        for s in ReportStatusEnum:
+            stat_dict[f"total_{s.value.lower()}"] = 0
+        
+        for status_enum, count in stats_result:
+            key = f"total_{status_enum.value.lower()}"
+            stat_dict[key] = count
+
+        return {
+            "list": data,
+            "limit": limit,
+            "offset": offset,
+            "has_more": has_more,
+            "month": month,
+            "year": year,
+            "stat": stat_dict
+        }
+    @staticmethod
+    def get_my_reports(db: Session, user_id: int, vehicle_id: int | None = None, limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+        """
+        Versi Optimized: Menggunakan JOIN ke Submission untuk menghindari N+1 Query.
+        """
+        # Kita select ReportModel (full object) DAN kolom spesifik dari Submission
+        q = db.query(
+            ReportModel, 
+            SubmissionModel.Status.label("sub_status"),
+            SubmissionModel.TotalCashAdvance.label("sub_total")
+        ).outerjoin(
+            SubmissionModel, SubmissionModel.KodeUnik == ReportModel.KodeUnik
+        ).options(
+            # Eager load relasi Report agar tidak lazy load saat di-loop
+            joinedload(ReportModel.user),
+            joinedload(ReportModel.dinas),
+            joinedload(ReportModel.vehicle).joinedload(models.Vehicle.vehicle_type),
+            joinedload(ReportModel.logs)
+        )
+
+        # Filters
+        q = q.filter(ReportModel.UserID == user_id)
+        if vehicle_id:
             q = q.filter(ReportModel.VehicleID == vehicle_id)
-        return q.order_by(ReportModel.ID.desc()).all()
+        
+        # Pagination Stats
+        total_records = q.count() # Count query (bisa dioptimalkan lagi tapi ini sudah lebih baik)
+        
+        # Fetch Data
+        q = q.order_by(ReportModel.Timestamp.desc())
+        raw_results = q.offset(offset).limit(limit).all()
+        
+        # Construct Response
+        # Kita harus menggabungkan object ReportModel dengan data tambahan dari Submission
+        result_list = []
+        for report, sub_status, sub_total in raw_results:
+            # Karena kita pakai Pydantic from_attributes=True, kita bisa passing object SQLAlchemy
+            # Namun untuk field tambahan (SubmissionStatus), kita perlu set secara manual 
+            # atau bungkus ke dict jika model Pydantic mendukungnya.
+            
+            # Cara paling aman: Convert model ke dict, lalu update field tambahan
+            # Note: Ini sedikit expensive dibanding passing object, tapi aman.
+            # Alternatif: Buat wrapper class sementara.
+            
+            # Kita gunakan pendekatan attribute setting sementara pada instance (hacky but fast)
+            # atau mapping manual field-field penting.
+            
+            # Pendekatan Mapping Manual (Explicit is better than implicit bugs)
+            vehicle_obj = report.vehicle
+            vehicle_type_name = vehicle_obj.vehicle_type.Nama if vehicle_obj and vehicle_obj.vehicle_type else None
+            
+            item = {
+                # Fields from ReportModel
+                "ID": report.ID,
+                "KodeUnik": report.KodeUnik,
+                "User": report.user, # Pydantic akan handle nested serialization
+                "Vehicle": report.vehicle, # Pydantic akan handle nested serialization
+                "Dinas": report.dinas,
+                "AmountRupiah": report.AmountRupiah,
+                "AmountLiter": report.AmountLiter,
+                "Description": report.Description,
+                "Status": report.Status,
+                "Timestamp": report.Timestamp,
+                "Latitude": report.Latitude,
+                "Longitude": report.Longitude,
+                "Odometer": report.Odometer,
+                "VehiclePhysicalPhotoPath": report.VehiclePhysicalPhotoPath,
+                "OdometerPhotoPath": report.OdometerPhotoPath,
+                "InvoicePhotoPath": report.InvoicePhotoPath,
+                "MyPertaminaPhotoPath": report.MyPertaminaPhotoPath,
+                "Logs": report.logs,
+                
+                # Fields from Join
+                "SubmissionStatus": sub_status.value if sub_status else None,
+                "SubmissionTotal": float(sub_total) if sub_total else None
+            }
+            result_list.append(item)
+
+        has_more = (offset + len(result_list)) < total_records
+        
+        return {
+            "list": result_list,
+            "limit": limit,
+            "offset": offset,
+            "has_more": has_more,
+            "month": None,
+            "year": None,
+            "stat": {"total_data": total_records}
+        }
 
     @staticmethod
     def get(db: Session, report_id: int) -> Optional[ReportModel]:
@@ -41,32 +182,26 @@ class ReportService:
 
     @staticmethod
     def create(db: Session, payload: ReportCreate) -> ReportModel:
-        if not db.query(models.User).filter(models.User.ID == payload.UserID).first():
-            raise HTTPException(400, "UserID tidak ditemukan")
+        # [UPDATED] Validasi & Auto-assign DinasID
+        user = db.query(models.User).filter(models.User.ID == payload.UserID).first()
+        if not user: raise HTTPException(400, "UserID tidak ditemukan")
+        
         if not db.query(models.Vehicle).filter(models.Vehicle.ID == payload.VehicleID).first():
             raise HTTPException(400, "VehicleID tidak ditemukan")
         
         status = ReportStatusEnum[payload.Status.value] if payload.Status else ReportStatusEnum.Pending
         
         report = ReportModel(
-            KodeUnik=payload.KodeUnik,
-            UserID=payload.UserID,
-            VehicleID=payload.VehicleID,
-            AmountRupiah=payload.AmountRupiah,
-            AmountLiter=payload.AmountLiter,
-            Description=payload.Description,
-            Status=status,
-            Latitude=payload.Latitude,
-            Longitude=payload.Longitude,
-            VehiclePhysicalPhotoPath=payload.VehiclePhysicalPhotoPath,
-            OdometerPhotoPath=payload.OdometerPhotoPath,
-            InvoicePhotoPath=payload.InvoicePhotoPath,
-            MyPertaminaPhotoPath=payload.MyPertaminaPhotoPath,
-            Odometer=payload.Odometer,
+            KodeUnik=payload.KodeUnik, UserID=payload.UserID, VehicleID=payload.VehicleID,
+            AmountRupiah=payload.AmountRupiah, AmountLiter=payload.AmountLiter, Description=payload.Description,
+            Status=status, Latitude=payload.Latitude, Longitude=payload.Longitude,
+            VehiclePhysicalPhotoPath=payload.VehiclePhysicalPhotoPath, OdometerPhotoPath=payload.OdometerPhotoPath,
+            InvoicePhotoPath=payload.InvoicePhotoPath, MyPertaminaPhotoPath=payload.MyPertaminaPhotoPath,
+            Odometer=payload.Odometer, 
+            DinasID=user.DinasID # [NEW] Simpan DinasID
         )
         db.add(report)
         db.flush()
-        
         ReportService._create_report_log(db, report.ID, status, payload.UserID, "Report dibuat")
         db.commit()
         return ReportService.get(db, report.ID) # type: ignore
@@ -79,8 +214,10 @@ class ReportService:
         odometer_photo: Optional[UploadFile] = None, invoice_photo: Optional[UploadFile] = None,
         mypertamina_photo: Optional[UploadFile] = None
     ) -> ReportModel:
-        if not db.query(models.User).filter(models.User.ID == user_id).first():
-            raise HTTPException(400, "UserID tidak ditemukan")
+        # [UPDATED] Validasi & Auto-assign DinasID
+        user = db.query(models.User).filter(models.User.ID == user_id).first()
+        if not user: raise HTTPException(400, "UserID tidak ditemukan")
+        
         if not db.query(models.Vehicle).filter(models.Vehicle.ID == vehicle_id).first():
             raise HTTPException(400, "VehicleID tidak ditemukan")
         
@@ -95,7 +232,8 @@ class ReportService:
                 AmountLiter=amount_liter, Description=description, Status=ReportStatusEnum.Pending,
                 Latitude=latitude, Longitude=longitude, Odometer=odometer,
                 VehiclePhysicalPhotoPath=v_path, OdometerPhotoPath=o_path,
-                InvoicePhotoPath=i_path, MyPertaminaPhotoPath=m_path
+                InvoicePhotoPath=i_path, MyPertaminaPhotoPath=m_path,
+                DinasID=user.DinasID # [NEW] Simpan DinasID
             )
             db.add(report)
             db.flush()
@@ -106,11 +244,11 @@ class ReportService:
             db.rollback()
             raise HTTPException(500, f"Failed: {str(e)}")
 
+    # ... (update_status, delete tetap sama) ...
     @staticmethod
     def update_status(db: Session, report_id: int, new_status: ReportStatusEnum, updated_by_user_id: int, notes: str | None) -> ReportModel:
         r = db.query(ReportModel).filter(ReportModel.ID == report_id).first()
         if not r: raise HTTPException(404, "Report not found")
-        
         setattr(r, "Status", new_status)
         ReportService._create_report_log(db, r.ID, new_status, updated_by_user_id, notes)
         db.commit()
@@ -122,39 +260,3 @@ class ReportService:
         if not r: raise HTTPException(404, "Not found")
         db.delete(r)
         db.commit()
-
-    @staticmethod
-    def get_my_reports(db: Session, user_id: int, vehicle_id: int | None = None, limit: int = 100, offset: int = 0) -> tuple[List[Any], int]:
-        # Custom logic ini tetap menggunakan mapping manual karena spesifik 'my_reports' 
-        # yang menggabungkan banyak status yang tidak direct relation.
-        # Tapi kita optimalkan dengan query yang benar.
-        q = db.query(ReportModel).filter(ReportModel.UserID == user_id)
-        if vehicle_id: q = q.filter(ReportModel.VehicleID == vehicle_id)
-        
-        total = q.count()
-        reports = q.order_by(ReportModel.Timestamp.desc()).offset(offset).limit(limit).all()
-        
-        # Helper untuk mapping
-        result = []
-        for r in reports:
-            # Karena ini custom response (MyReportResponse), kita construct manual atau
-            # pakai joinedload di query atas jika struktur DB mendukung direct relation.
-            # Disini saya gunakan query manual optimization agar sesuai logic sebelumnya tapi rapi
-            vehicle = db.query(models.Vehicle).options(joinedload(models.Vehicle.vehicle_type)).get(r.VehicleID)
-            sub = db.query(models.Submission).filter(models.Submission.KodeUnik == r.KodeUnik).first()
-            
-            res_item = {
-                "ID": r.ID, "KodeUnik": r.KodeUnik, "UserID": r.UserID, "VehicleID": r.VehicleID,
-                "VehicleName": vehicle.Nama if vehicle else None,
-                "VehiclePlat": vehicle.Plat if vehicle else None,
-                "VehicleType": vehicle.vehicle_type.Nama if vehicle and vehicle.vehicle_type else None,
-                "AmountRupiah": r.AmountRupiah, "AmountLiter": r.AmountLiter,
-                "Description": r.Description, "Status": r.Status.value, "Timestamp": r.Timestamp,
-                "VehiclePhysicalPhotoPath": r.VehiclePhysicalPhotoPath,
-                # ... field lain
-                "SubmissionStatus": sub.Status.value if sub else None,
-                "SubmissionTotal": float(sub.TotalCashAdvance) if sub else None
-            }
-            result.append(res_item)
-            
-        return result, total

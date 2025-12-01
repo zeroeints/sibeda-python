@@ -52,6 +52,7 @@ class Dinas(Base):
     ID = Column(Integer, primary_key=True, autoincrement=True, index=True)
     Nama = Column(String(255), nullable=False)
     users = relationship("User", back_populates="dinas")
+    vehicles = relationship("Vehicle", back_populates="dinas")
 
 user_vehicle_association = Table(
     "user_vehicle",
@@ -114,7 +115,9 @@ class Vehicle(Base):
     TipeTransmisi = Column(String(50), nullable=True) # atau Enum
     TotalFuelBar = Column(Integer, default=8)         # Default 8 bar misal
     CurrentFuelBar = Column(Integer, default=0)
-
+    DinasID = Column(Integer, ForeignKey("Dinas.ID"), nullable=True) # Nullable jika ada kendaraan umum/pool
+   
+    dinas = relationship("Dinas", back_populates="vehicles")
     vehicle_type = relationship("VehicleType", back_populates="vehicles")
     reports = relationship("Report", back_populates="vehicle")
     # Submissions relationship removed
@@ -143,7 +146,9 @@ class Submission(Base):
     Date = Column(DateTime(timezone=True), nullable=False)
     # VehicleID REMOVED
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    DinasID = Column(Integer, ForeignKey("Dinas.ID"), nullable=True) # Nullable untuk data lama, tapi sebaiknya Not Null
 
+    dinas = relationship("Dinas", foreign_keys=[DinasID])
     creator = relationship("User", foreign_keys=[CreatorID], back_populates="created_submissions")
     receiver = relationship("User", foreign_keys=[ReceiverID], back_populates="received_submissions")
     # Vehicle relationship REMOVED
@@ -179,7 +184,9 @@ class Report(Base):
     InvoicePhotoPath = Column(Text)
     MyPertaminaPhotoPath = Column(Text)
     Odometer = Column(BigInteger)
+    DinasID = Column(Integer, ForeignKey("Dinas.ID"), nullable=True)
 
+    dinas = relationship("Dinas", foreign_keys=[DinasID])
     user = relationship("User", back_populates="reports")
     vehicle = relationship("Vehicle", back_populates="reports")
     logs = relationship("ReportLog", back_populates="report", cascade="all, delete-orphan", order_by="ReportLog.Timestamp")

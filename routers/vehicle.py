@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from database.database import SessionLocal
 import controller.auth as auth
@@ -17,12 +17,20 @@ def get_db():
 
 @router.get(
     "/", 
-    response_model=schemas.SuccessListResponse[schemas.VehicleResponse]
+    response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.VehicleResponse]],
+    summary="List Vehicles (Paged)"
 )
-def list_vehicles(db: Session = Depends(get_db), _user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.VehicleResponse]:
-    data = VehicleService.list(db)
-    return schemas.SuccessListResponse[schemas.VehicleResponse](data=data, message="Success")
-
+def list_vehicles(
+    limit: int = Query(10, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db), 
+    _user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.PagedListData[schemas.VehicleResponse]]:
+    
+    result = VehicleService.list(db, limit, offset)
+    return schemas.SuccessResponse[schemas.PagedListData[schemas.VehicleResponse]](
+        data=result, message="Success"
+    )
 @router.post(
     "/", 
     response_model=schemas.SuccessResponse[schemas.VehicleResponse],
@@ -53,18 +61,10 @@ def delete_vehicle(vehicle_id: int, db: Session = Depends(get_db), _user: UserMo
     VehicleService.delete(db, vehicle_id)
     return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="Vehicle dihapus"), message=get_message("vehicle_delete_success", None))
 
-@router.get(
-    "/my/vehicles", 
-    response_model=schemas.SuccessListResponse[schemas.MyVehicleResponse],
-    summary="Get My Vehicles",
-    description="Mendapatkan kendaraan yang terkait dengan user (pernah digunakan untuk submission atau report)."
-)
-def get_my_vehicles(db: Session = Depends(get_db), current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.MyVehicleResponse]:
-    vehicles = VehicleService.get_my_vehicles(db, current_user.ID)  # type: ignore
-    return schemas.SuccessListResponse[schemas.MyVehicleResponse](
-        data=vehicles,  # type: ignore
-        message=f"Ditemukan {len(vehicles)} kendaraan"
-    )
+@router.get("/my/vehicles", response_model=schemas.SuccessResponse[schemas.MyVehicleResponse])
+def get_my_vehicles(db: Session = Depends(get_db), current_user: UserModel = Depends(auth.get_current_user)):
+    vehicles = VehicleService.get_my_vehicles(db, current_user.ID)
+    return schemas.SuccessResponse[schemas.MyVehicleResponse](data=vehicles, message=f"Found {len(vehicles)}")
 
 @router.get(
     "/my/vehicles/{vehicle_id}", 
@@ -81,4 +81,58 @@ def get_my_vehicle_detail(
     return schemas.SuccessResponse[schemas.VehicleDetailResponse](
         data=vehicle_detail,  # type: ignore
         message="Detail kendaraan berhasil ditemukan"
+    )
+
+@router.get(
+    "/dinas/{dinas_id}", 
+    response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.VehicleResponse]],
+    summary="Get Vehicles by Dinas"
+)
+def get_vehicles_by_dinas(
+    dinas_id: int,
+    limit: int = Query(10, ge=1),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    _user: UserModel = Depends(auth.get_current_user)
+):
+    result = VehicleService.get_by_dinas(db, dinas_id, limit, offset)
+    return schemas.SuccessResponse[schemas.PagedListData[schemas.VehicleResponse]](
+        data=result,
+        message=f"Ditemukan {result['stat']['total_data']} kendaraan dinas"
+    )
+
+@router.post(
+    "/{vehicle_id}/assign", 
+    response_model=schemas.SuccessResponse[schemas.Message],
+    summary="Assign User to Vehicle",
+    description="Menambahkan user sebagai pemegang/pengguna kendaraan ini (Many-to-Many)."
+)
+def assign_user_to_vehicle(
+    vehicle_id: int, 
+    payload: schemas.VehicleAssignmentRequest,
+    db: Session = Depends(get_db), 
+    _user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.Message]:
+    VehicleService.assign_user(db, vehicle_id, payload.UserID)
+    return schemas.SuccessResponse[schemas.Message](
+        data=schemas.Message(detail="User berhasil di-assign ke kendaraan"), 
+        message="Success"
+    )
+
+@router.post(
+    "/{vehicle_id}/unassign", 
+    response_model=schemas.SuccessResponse[schemas.Message],
+    summary="Unassign User from Vehicle",
+    description="Menghapus user dari daftar pemegang kendaraan ini."
+)
+def unassign_user_from_vehicle(
+    vehicle_id: int, 
+    payload: schemas.VehicleAssignmentRequest,
+    db: Session = Depends(get_db), 
+    _user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.Message]:
+    VehicleService.unassign_user(db, vehicle_id, payload.UserID)
+    return schemas.SuccessResponse[schemas.Message](
+        data=schemas.Message(detail="User berhasil di-unassign dari kendaraan"), 
+        message="Success"
     )

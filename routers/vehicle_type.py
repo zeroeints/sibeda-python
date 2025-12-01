@@ -19,14 +19,14 @@ def get_db():
 
 @router.get(
     "/", 
-    response_model=schemas.SuccessListResponse[schemas.VehicleTypeResponse],
+    response_model=schemas.SuccessResponse[schemas.VehicleTypeResponse],
     summary="List Vehicle Types",
     description="Mendapatkan daftar tipe kendaraan (Mobil, Motor, Truk, dll)."
 )
 def list_vehicle_types(request: Request, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)):
     data = VehicleTypeService.list(db)
     lang = detect_lang(request)
-    return schemas.SuccessListResponse[schemas.VehicleTypeResponse](data=data, message=get_message("create_success", lang))
+    return schemas.SuccessResponse[schemas.VehicleTypeResponse](data=data, message=get_message("create_success", lang))
 
 @router.get(
     "/{vt_id}", 

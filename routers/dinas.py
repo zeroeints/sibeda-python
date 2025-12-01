@@ -17,13 +17,13 @@ def get_db():
 
 @router.get(
     "/", 
-    response_model=schemas.SuccessListResponse[schemas.DinasResponse],
+    response_model=schemas.SuccessResponse[schemas.DinasResponse],
     summary="List Dinas",
     description="Mendapatkan daftar seluruh Dinas/Instansi."
 )
-def read_dinas(db: Session = Depends(get_db)) -> schemas.SuccessListResponse[schemas.DinasResponse]:
+def read_dinas(db: Session = Depends(get_db)) -> schemas.SuccessResponse[schemas.DinasResponse]:
     data = DinasService.list(db)
-    return schemas.SuccessListResponse[schemas.DinasResponse](data=data)
+    return schemas.SuccessResponse[schemas.DinasResponse](data=data)
 
 @router.post(
     "/", 

@@ -1,0 +1,1619 @@
+{
+	"info": {
+		"_postman_id": "b6a8c2f1-7d3a-4e5b-9a1c-8f2e1d0a5b3c",
+		"name": "SIBEDA API Full V4",
+		"description": "Koleksi API Lengkap SIBEDA V4. Update: Added Vehicle Assignment endpoints.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login (Get Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data.access_token) {",
+									"    pm.environment.set(\"token\", jsonData.data.access_token);",
+									"    console.log(\"Token updated successfully\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "username",
+									"value": "100000000000000001",
+									"type": "text",
+									"description": "NIP User"
+								},
+								{
+									"key": "password",
+									"value": "password123",
+									"type": "text"
+								},
+								{
+									"key": "lang",
+									"value": "id",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Token",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/verify?check_user=true",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"verify"
+							],
+							"query": [
+								{
+									"key": "check_user",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/refresh-token",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"refresh-token"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"old_password\": \"password123\",\n    \"new_password\": \"newpassword123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/change-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"change-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/forgot-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"forgot-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify OTP",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\",\n    \"otp\": \"1234\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/verify-otp",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"verify-otp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\",\n    \"otp\": \"1234\",\n    \"new_password\": \"newpassword123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/reset-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"reset-password"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "List Users (Paged)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/?skip=0&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								""
+							],
+							"query": [
+								{
+									"key": "skip",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Users Detailed",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/detailed/search?limit=10&role=pic",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"detailed",
+								"search"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "Budi",
+									"disabled": true
+								},
+								{
+									"key": "role",
+									"value": "pic"
+								},
+								{
+									"key": "dinas_id",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Balance",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/balance/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"balance",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Stats By Dinas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/stats/count-by-dinas",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"stats",
+								"count-by-dinas"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"NIP\": \"123456789012345678\",\n  \"NamaLengkap\": \"New User\",\n  \"Email\": \"newuser@example.com\",\n  \"NoTelepon\": \"08123456789\",\n  \"Password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"NamaLengkap\": \"Updated Name\",\n  \"NoTelepon\": \"08999999999\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Vehicles",
+			"item": [
+				{
+					"name": "List All Vehicles (Paged)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/vehicle/?limit=10&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle",
+								""
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Vehicles by Dinas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/vehicle/dinas/1?limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle",
+								"dinas",
+								"1"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Vehicles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/vehicle/my/vehicles",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle",
+								"my",
+								"vehicles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Vehicle Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/vehicle/my/vehicles/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle",
+								"my",
+								"vehicles",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Vehicle (Full Spec)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Nama\": \"Kijang Innova Reborn\",\n  \"Plat\": \"B 1234 ZZ\",\n  \"VehicleTypeID\": 1,\n  \"KapasitasMesin\": 2400,\n  \"Odometer\": 15000,\n  \"Status\": \"Active\",\n  \"JenisBensin\": \"Diesel\",\n  \"Merek\": \"Toyota\",\n  \"TipeTransmisi\": \"Matic\",\n  \"TotalFuelBar\": 8,\n  \"CurrentFuelBar\": 4,\n  \"DinasID\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/vehicle/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Vehicle",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Nama\": \"Kijang Update\",\n    \"Plat\": \"B 9999 XX\",\n    \"VehicleTypeID\": 1,\n    \"Status\": \"Active\",\n    \"CurrentFuelBar\": 6\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/vehicle/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Assign User to Vehicle",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"UserID\": 2\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/vehicle/1/assign",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle",
+								"1",
+								"assign"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Unassign User from Vehicle",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"UserID\": 2\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/vehicle/1/unassign",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle",
+								"1",
+								"unassign"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Vehicle",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/vehicle/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Vehicle Types",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/vehicle-type/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle-type",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Vehicle Type",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Nama\": \"Truk\",\n    \"Plat\": \"-\",\n    \"VehicleTypeID\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/vehicle-type/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle-type",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Vehicle Type",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Nama\": \"Truk Besar\",\n    \"Plat\": \"-\",\n    \"VehicleTypeID\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/vehicle-type/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle-type",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Vehicle Type",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/vehicle-type/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"vehicle-type",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Submissions",
+			"item": [
+				{
+					"name": "List Submissions (Paged)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/submission/?limit=10&offset=0&month=11&year=2025",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"submission",
+								""
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								},
+								{
+									"key": "month",
+									"value": "11"
+								},
+								{
+									"key": "year",
+									"value": "2025"
+								},
+								{
+									"key": "status",
+									"value": "Pending",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Submission Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/submission/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"submission",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Submission",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"KodeUnik\": \"SUB-2025-NEW\",\n  \"CreatorID\": 1,\n  \"ReceiverID\": 2,\n  \"TotalCashAdvance\": 250000,\n  \"Status\": \"Pending\",\n  \"Description\": \"Dinas Luar Kota\",\n  \"Date\": \"2025-11-30T10:00:00Z\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/submission/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"submission",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Submission",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"TotalCashAdvance\": 300000,\n    \"Status\": \"Accepted\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/submission/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"submission",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Submission",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/submission/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"submission",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Monthly Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/submission/monthly/summary?month=11&year=2025",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"submission",
+								"monthly",
+								"summary"
+							],
+							"query": [
+								{
+									"key": "month",
+									"value": "11"
+								},
+								{
+									"key": "year",
+									"value": "2025"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Monthly Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/submission/monthly/details?month=11&year=2025",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"submission",
+								"monthly",
+								"details"
+							],
+							"query": [
+								{
+									"key": "month",
+									"value": "11"
+								},
+								{
+									"key": "year",
+									"value": "2025"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Reports",
+			"item": [
+				{
+					"name": "List All Reports (Paged)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/report/?limit=10&offset=0&month=11&year=2025",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"report",
+								""
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								},
+								{
+									"key": "month",
+									"value": "11"
+								},
+								{
+									"key": "year",
+									"value": "2025"
+								},
+								{
+									"key": "vehicle_id",
+									"value": "1",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Reports",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/report/my/reports?limit=10&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"report",
+								"my",
+								"reports"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Report Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/report/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"report",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Report (Upload)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "KodeUnik",
+									"value": "SUB-TEST-002",
+									"type": "text"
+								},
+								{
+									"key": "UserID",
+									"value": "1",
+									"type": "text"
+								},
+								{
+									"key": "VehicleID",
+									"value": "1",
+									"type": "text"
+								},
+								{
+									"key": "AmountRupiah",
+									"value": "50000",
+									"type": "text"
+								},
+								{
+									"key": "AmountLiter",
+									"value": "5",
+									"type": "text"
+								},
+								{
+									"key": "Description",
+									"value": "Isi bensin tes",
+									"type": "text"
+								},
+								{
+									"key": "Odometer",
+									"value": "12000",
+									"type": "text"
+								},
+								{
+									"key": "VehiclePhysicalPhoto",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "OdometerPhoto",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/report",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"report"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Report (Patch)",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "Description",
+									"value": "Update Deskripsi",
+									"type": "text"
+								},
+								{
+									"key": "AmountRupiah",
+									"value": "55000",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/report/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"report",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Report Status",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Status\": \"Accepted\",\n    \"Notes\": \"Approved by admin\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/report/1/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"report",
+								"1",
+								"status"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Report Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/report/1/logs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"report",
+								"1",
+								"logs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Report",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/report/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"report",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Wallets",
+			"item": [
+				{
+					"name": "List Wallets",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/wallet/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"wallet",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Wallet by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/wallet/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"wallet",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Wallet",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/wallet/user/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"wallet",
+								"user",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Wallet",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"UserID\": 2,\n    \"WalletTypeID\": 1,\n    \"Saldo\": 100000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/wallet/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"wallet",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Wallet",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"UserID\": 2,\n    \"WalletTypeID\": 1,\n    \"Saldo\": 200000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/wallet/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"wallet",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Wallet",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/wallet/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"wallet",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Wallet Types",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/wallet/type",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"wallet",
+								"type"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Wallet Type",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Nama\": \"Bank\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/wallet/types",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"wallet",
+								"types"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Stats",
+			"item": [
+				{
+					"name": "PIC Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/stat/pic",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"stat",
+								"pic"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Kadis Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/stat/kadis",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"stat",
+								"kadis"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Admin Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/stat/admin?dinas_id=1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"stat",
+								"admin"
+							],
+							"query": [
+								{
+									"key": "dinas_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "QR",
+			"item": [
+				{
+					"name": "Get My QR",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/qr/my",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"qr",
+								"my"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Scan QR (Get User Info)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"kode_unik\": \"1234\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/qr/scan",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"qr",
+								"scan"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Dinas (QR)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"NIP\": \"123456789012345678\",\n    \"UniqueCode\": \"1234\",\n    \"DinasID\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/qr/assign",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"qr",
+								"assign"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Dinas",
+			"item": [
+				{
+					"name": "List Dinas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dinas/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dinas",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Dinas",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Nama\": \"Dinas Pendidikan\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/dinas/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dinas",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Dinas",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dinas/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dinas",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "System",
+			"item": [
+				{
+					"name": "Run Seeder",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/seeder/run",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"seeder",
+								"run"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

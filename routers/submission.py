@@ -7,45 +7,50 @@ import controller.auth as auth
 import schemas.schemas as schemas
 from model.models import User as UserModel
 from services.submission_service import SubmissionService
-from i18n.messages import get_message
 
 router = APIRouter(prefix="/submission", tags=["Submission"])
 
 def get_db():
     db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    try: yield db
+    finally: db.close()
 
 @router.get(
     "/", 
-    response_model=schemas.SuccessListResponse[schemas.SubmissionResponse],
-    summary="List Submissions",
-    description="Mendapatkan daftar submission lengkap dengan objek nested User."
+    response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.SubmissionResponse]],
+    summary="List Submissions (Paged)",
+    description="Mendapatkan daftar submission dengan pagination, filter (status, bulan, tahun), dan statistik."
 )
 def list_submissions(
     creator_id: int | None = None,
     receiver_id: int | None = None,
-    # VehicleID filter removed
     status: str | None = Query(None),
-    limit: int | None = Query(None, ge=1, le=1000),
+    month: int | None = Query(None, ge=1, le=12),
+    year: int | None = Query(None, ge=2000, le=2100),
+    limit: int = Query(10, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _user: UserModel = Depends(auth.get_current_user),
-) -> schemas.SuccessListResponse[schemas.SubmissionResponse]:
-    data = SubmissionService.list(db, creator_id, receiver_id, status=status, limit=limit, offset=offset)
-    return schemas.SuccessListResponse[schemas.SubmissionResponse](
-        data=data, 
-        message=f"Ditemukan {len(data)} submission"
+) -> schemas.SuccessResponse[schemas.PagedListData[schemas.SubmissionResponse]]:
+    
+    result = SubmissionService.list(
+        db, creator_id, receiver_id, status, month, year, limit, offset
+    )
+    return schemas.SuccessResponse[schemas.PagedListData[schemas.SubmissionResponse]](
+        data=result, 
+        message="Data pengajuan berhasil diambil"
     )
 
 @router.get(
     "/{submission_id}", 
     response_model=schemas.SuccessResponse[schemas.SubmissionResponse],
-    summary="Get Submission"
+    summary="Get Submission Detail"
 )
-def get_submission(submission_id: int, db: Session = Depends(get_db), _user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.SubmissionResponse]:
+def get_submission(
+    submission_id: int, 
+    db: Session = Depends(get_db), 
+    _user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.SubmissionResponse]:
     s = SubmissionService.get(db, submission_id)
     if not s:
         raise HTTPException(status_code=404, detail="Submission tidak ditemukan")
@@ -56,9 +61,13 @@ def get_submission(submission_id: int, db: Session = Depends(get_db), _user: Use
     response_model=schemas.SuccessResponse[schemas.SubmissionResponse],
     summary="Create Submission"
 )
-def create_submission(payload: schemas.SubmissionCreate, db: Session = Depends(get_db), _user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.SubmissionResponse]:
+def create_submission(
+    payload: schemas.SubmissionCreate, 
+    db: Session = Depends(get_db), 
+    _user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.SubmissionResponse]:
     created = SubmissionService.create(db, payload)
-    return schemas.SuccessResponse[schemas.SubmissionResponse](data=created, message="Created")
+    return schemas.SuccessResponse[schemas.SubmissionResponse](data=created, message="Submission berhasil dibuat")
 
 @router.put(
     "/{submission_id}", 
@@ -72,43 +81,49 @@ def update_submission(
     _user: UserModel = Depends(auth.get_current_user)
 ) -> schemas.SuccessResponse[schemas.SubmissionResponse]:
     updated = SubmissionService.update(db, submission_id, payload, user_id=_user.ID)
-    return schemas.SuccessResponse[schemas.SubmissionResponse](data=updated, message="Updated")
+    return schemas.SuccessResponse[schemas.SubmissionResponse](data=updated, message="Submission berhasil diupdate")
 
 @router.delete(
     "/{submission_id}", 
     response_model=schemas.SuccessResponse[schemas.Message],
     summary="Delete Submission"
 )
-def delete_submission(submission_id: int, db: Session = Depends(get_db), _user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.Message]:
+def delete_submission(
+    submission_id: int, 
+    db: Session = Depends(get_db), 
+    _user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.Message]:
     SubmissionService.delete(db, submission_id)
     return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="Submission dihapus"), message="Deleted")
 
 @router.get(
     "/monthly/summary", 
-    response_model=schemas.SuccessResponse[schemas.SubmissionSummary]
+    response_model=schemas.SuccessResponse[schemas.SubmissionSummary],
+    summary="Get Monthly Summary Stats"
 )
 def get_monthly_summary(
-    month: int = Query(...),
-    year: int = Query(...),
-    db: Session = Depends(get_db),
+    month: int = Query(...), 
+    year: int = Query(...), 
+    db: Session = Depends(get_db), 
     _user: UserModel = Depends(auth.get_current_user)
 ) -> schemas.SuccessResponse[schemas.SubmissionSummary]:
     summary = SubmissionService.get_monthly_summary(db, month, year)
-    return schemas.SuccessResponse[schemas.SubmissionSummary](data=summary, message="Summary")
+    return schemas.SuccessResponse[schemas.SubmissionSummary](data=summary, message="Ringkasan bulanan berhasil diambil")
 
 @router.get(
     "/monthly/details", 
-    response_model=schemas.SuccessListResponse[schemas.SubmissionResponse] 
+    response_model=schemas.SuccessResponse[schemas.SubmissionResponse],
+    summary="Get Monthly Details List (No Pagination)"
 )
 def get_monthly_details(
-    month: int = Query(...),
-    year: int = Query(...),
-    db: Session = Depends(get_db),
+    month: int = Query(...), 
+    year: int = Query(...), 
+    db: Session = Depends(get_db), 
     _user: UserModel = Depends(auth.get_current_user)
-) -> schemas.SuccessListResponse[schemas.SubmissionResponse]:
-    all_subs = SubmissionService.list(db)
-    filtered = [s for s in all_subs if s.created_at.month == month and s.created_at.year == year]
-    return schemas.SuccessListResponse[schemas.SubmissionResponse](
-        data=filtered,
-        message=f"Detail pengajuan bulan {month}/{year}"
+) -> schemas.SuccessResponse[schemas.SubmissionResponse]:
+    # Menggunakan method optimized di service (Query SQL langsung, bukan filter list python)
+    data = SubmissionService.get_monthly_details_optimized(db, month, year)
+    return schemas.SuccessResponse[schemas.SubmissionResponse](
+        data=data, 
+        message=f"Detail pengajuan bulan {month}/{year} berhasil diambil"
     )

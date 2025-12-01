@@ -44,25 +44,33 @@ def register_user_alias(user: schemas.UserCreate, db: Session = Depends(get_db))
 
 @router.get(
     "/", 
-    response_model=schemas.SuccessListResponse[schemas.UserResponse],
-    summary="List Users",
-    description="Mendapatkan daftar pengguna dengan pagination sederhana."
+    response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.UserResponse]],
+    summary="List Users (Paged)"
 )
-def read_users(skip: int = 0, limit: int = 10, db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.UserResponse]:
-    users = UserService.list(db, skip=skip, limit=limit)
-    return schemas.SuccessListResponse[schemas.UserResponse](data=users, message=get_message("create_success", None))
-
+def read_users(
+    skip: int = Query(0, ge=0), 
+    limit: int = Query(10, ge=1, le=1000), 
+    db: Session = Depends(get_db), 
+    _current_user: UserModel = Depends(auth.get_current_user)
+) -> schemas.SuccessResponse[schemas.PagedListData[schemas.UserResponse]]:
+    
+    result = UserService.list(db, skip=skip, limit=limit)
+    return schemas.SuccessResponse[schemas.PagedListData[schemas.UserResponse]](
+        data=result, 
+        message=get_message("create_success", None)
+    )
 @router.get(
     "/{user_id}", 
-    response_model=schemas.SuccessResponse[schemas.UserResponse],
-    summary="Get User Detail",
-    description="Mendapatkan informasi dasar pengguna berdasarkan ID."
+    # [UPDATED] Menggunakan Detail Response agar lebih lengkap infonya
+    response_model=schemas.SuccessResponse[schemas.UserDetailResponse], 
+    summary="Get User Detail Complete"
 )
-def get_user(user_id: int, db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.UserResponse]:
-    user = UserService.get_by_id(db, user_id)
-    if not user:
+def get_user(user_id: int, db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.UserDetailResponse]:
+    # Menggunakan method optimized
+    user_detail = UserService.get_user_detail_complete(db, user_id)
+    if not user_detail:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")
-    return schemas.SuccessResponse[schemas.UserResponse](data=user, message="User berhasil ditemukan")
+    return schemas.SuccessResponse[schemas.UserDetailResponse](data=user_detail, message="User berhasil ditemukan")
 
 @router.put(
     "/{user_id}", 
@@ -85,13 +93,13 @@ def patch_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Depe
 
 @router.get(
     "/stats/count-by-dinas", 
-    response_model=schemas.SuccessListResponse[schemas.UserCountByDinas],
+    response_model=schemas.SuccessResponse[schemas.UserCountByDinas],
     summary="Count Users per Dinas",
     description="Mendapatkan statistik jumlah pengguna yang terdaftar di setiap dinas."
 )
-def get_user_count_by_dinas(db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.UserCountByDinas]:
+def get_user_count_by_dinas(db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.UserCountByDinas]:
     user_counts = UserService.get_user_count_by_dinas(db)
-    return schemas.SuccessListResponse[schemas.UserCountByDinas](
+    return schemas.SuccessResponse[schemas.UserCountByDinas](
         data=user_counts, 
         message="Berhasil mendapatkan total pengguna per dinas"
     )
@@ -115,49 +123,35 @@ def get_user_balance(
 
 @router.get(
     "/detailed/search", 
-    response_model=schemas.PaginatedResponse[schemas.UserDetailResponse],
-    summary="Search Users Detailed",
-    description="Mencari pengguna dengan filter lengkap (role, dinas, status) dan mendapatkan detail wallet serta statistik submission."
+    response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.UserDetailResponse]],
+    summary="Search Users Detailed (Paged)"
 )
 def search_users_detailed(
-    search: str | None = Query(None, description="Cari berdasarkan NIP, Nama, atau Email"),
-    role: str | None = Query(None, description="Filter berdasarkan role: admin, kepala_dinas, pic"),
-    dinas_id: int | None = Query(None, description="Filter berdasarkan ID dinas"),
-    is_verified: bool | None = Query(None, description="Filter berdasarkan status verifikasi"),
-    limit: int = Query(100, ge=1, le=1000, description="Limit jumlah data"),
-    offset: int = Query(0, ge=0, description="Offset pagination"),
+    search: str | None = Query(None),
+    role: str | None = Query(None),
+    dinas_id: int | None = Query(None),
+    is_verified: bool | None = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _current_user: UserModel = Depends(auth.get_current_user)
-) -> schemas.PaginatedResponse[schemas.UserDetailResponse]:
+) -> schemas.SuccessResponse[schemas.PagedListData[schemas.UserDetailResponse]]:
     
-    total = UserService.count_users(
-        db,
-        search=search,
-        role=role,
-        dinas_id=dinas_id,
-        is_verified=is_verified
-    )
-    
-    data = UserService.search_users_detailed(
-        db,
-        search=search,
-        role=role,
-        dinas_id=dinas_id,
-        is_verified=is_verified,
-        limit=limit,
-        offset=offset
-    )
+    total = UserService.count_users(db, search, role, dinas_id, is_verified)
+    data = UserService.search_users_detailed(db, search, role, dinas_id, is_verified, None, limit, offset)
     
     has_more = (offset + len(data)) < total
     
-    return schemas.PaginatedResponse[schemas.UserDetailResponse](
-        data=data,  # type: ignore
-        message=f"Ditemukan {len(data)} dari {total} pengguna",
-        pagination={
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-            "returned": len(data),
-            "has_more": has_more
-        }
+    # Construct standard PagedListData
+    result = {
+        "list": data,
+        "limit": limit,
+        "offset": offset,
+        "has_more": has_more,
+        "stat": {"total_data": total}
+    }
+    
+    return schemas.SuccessResponse[schemas.PagedListData[schemas.UserDetailResponse]](
+        data=result, 
+        message=f"Ditemukan {len(data)} dari {total} pengguna"
     )
