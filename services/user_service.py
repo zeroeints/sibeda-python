@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import datetime
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -298,42 +299,19 @@ class UserService:
     
     @staticmethod
     def get_user_balance(db: Session, user_id: int) -> Dict[str, Any]:
-        """
-        Mendapatkan saldo wallet user beserta informasi user
-        """
-        # Get user
         user = db.query(models.User).filter(models.User.ID == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User tidak ditemukan")
         
-        # Get wallet
         wallet = db.query(models.Wallet).filter(models.Wallet.UserID == user_id).first()
         if not wallet:
-            raise HTTPException(status_code=404, detail="Wallet tidak ditemukan untuk user ini")
+            raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
         
-        # Get wallet type
-        wallet_type = db.query(models.WalletType).filter(
-            models.WalletType.ID == wallet.WalletTypeID
-        ).first()
-        
-        # Get dinas name if exists
-        dinas_name = None
-        if user.DinasID is not None:  # type: ignore
-            dinas = db.query(models.Dinas).filter(models.Dinas.ID == user.DinasID).first()
-            dinas_name = dinas.Nama if dinas else None
-        
-        balance_info: Dict[str, Any] = {
-            "user_id": user.ID,
-            "nip": user.NIP,
-            "nama_lengkap": user.NamaLengkap,
-            "email": user.Email,
-            "role": user.Role.value,
-            "dinas_id": user.DinasID,
-            "dinas_nama": dinas_name,
-            "wallet_id": wallet.ID,
-            "saldo": float(wallet.Saldo),  # type: ignore
-            "wallet_type_id": wallet.WalletTypeID,
-            "wallet_type_nama": wallet_type.Nama if wallet_type else None,
+        # Pydantic akan meng-convert SQLAlchemy object 'user' menjadi UserSimpleResponse
+        return {
+            "User": user, 
+            "DinasNama": user.dinas.Nama if user.dinas else None,
+            "WalletID": wallet.ID,
+            "Saldo": float(wallet.Saldo),
+            "WalletType": wallet.wallet_type.Nama if wallet.wallet_type else None
         }
-        
-        return balance_info

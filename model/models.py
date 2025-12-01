@@ -1,23 +1,11 @@
 from __future__ import annotations
 import enum
 from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Text,
-    BigInteger,
-    Numeric,
-    DateTime,
-    ForeignKey,
-    Enum as SAEnum,
-    UniqueConstraint,
-    func,
-    Boolean,
-   
+    Column, Integer, String, Text, BigInteger, Numeric, DateTime, 
+    ForeignKey, Enum as SAEnum, UniqueConstraint, func, Boolean, Table
 )
 from sqlalchemy.orm import relationship
 from database.database import Base
-
 
 # Enums
 class RoleEnum(enum.Enum):
@@ -25,17 +13,14 @@ class RoleEnum(enum.Enum):
     kepala_dinas = "kepala_dinas"
     pic = "pic"
 
-
 class VehicleStatusEnum(enum.Enum):
     Active = "Active"
     Nonactive = "Nonactive"
-
 
 class SubmissionStatusEnum(enum.Enum):
     Accepted = "Accepted"
     Rejected = "Rejected"
     Pending = "Pending"
-
 
 class ReportStatusEnum(enum.Enum):
     Pending = "Pending"
@@ -43,48 +28,41 @@ class ReportStatusEnum(enum.Enum):
     Accepted = "Accepted"
     Rejected = "Rejected"
 
-
 class PurposeEnum(enum.Enum):
     register = "register"
     password_reset = "password_reset"
     otp = "otp"
 
+# --- Tables ---
 
-# 1. Tabel tanpa dependensi eksternal
 class WalletType(Base):
     __tablename__ = "WalletType"
-
     ID = Column(Integer, primary_key=True, autoincrement=True)
     Nama = Column(String(100), nullable=False)
-
     wallets = relationship("Wallet", back_populates="wallet_type")
-
 
 class VehicleType(Base):
     __tablename__ = "VehicleType"
-
     ID = Column(Integer, primary_key=True, autoincrement=True)
     Nama = Column(String(100), nullable=False)
-
     vehicles = relationship("Vehicle", back_populates="vehicle_type")
-
 
 class Dinas(Base):
     __tablename__ = "Dinas"
-
     ID = Column(Integer, primary_key=True, autoincrement=True, index=True)
     Nama = Column(String(255), nullable=False)
-
     users = relationship("User", back_populates="dinas")
 
+user_vehicle_association = Table(
+    "user_vehicle",
+    Base.metadata,
+    Column("user_id", Integer, ForeignKey("User.ID"), primary_key=True),
+    Column("vehicle_id", Integer, ForeignKey("Vehicle.ID"), primary_key=True),
+)
 
-# 2. Entitas utama
 class User(Base):
     __tablename__ = "User"
-    __table_args__ = (
-        UniqueConstraint("NIP", name="uq_user_nip"),
-       
-    )
+    __table_args__ = (UniqueConstraint("NIP", name="uq_user_nip"),)
 
     ID = Column(Integer, primary_key=True, autoincrement=True, index=True)
     NIP = Column(String(50), nullable=False, unique=True)
@@ -93,55 +71,29 @@ class User(Base):
     Email = Column(String(255), nullable=False)
     NoTelepon = Column(String(20))
     Password = Column(String(255), nullable=False)
-    # Kolom verifikasi akun user
     isVerified = Column(Boolean, default=False, server_default="0", nullable=False)
-
-    DinasID = Column(
-        Integer,
-        ForeignKey("Dinas.ID", ondelete="SET NULL"),
-        nullable=True,
-    )
+    DinasID = Column(Integer, ForeignKey("Dinas.ID", ondelete="SET NULL"), nullable=True)
 
     dinas = relationship("Dinas", back_populates="users")
-
-    # relations ke tabel lain
     wallet = relationship("Wallet", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    created_submissions = relationship(
-        "Submission",
-        back_populates="creator",
-        foreign_keys="Submission.CreatorID",
-    )
-    received_submissions = relationship(
-        "Submission",
-        back_populates="receiver",
-        foreign_keys="Submission.ReceiverID",
-    )
+    
+    # Submissions
+    created_submissions = relationship("Submission", back_populates="creator", foreign_keys="Submission.CreatorID")
+    received_submissions = relationship("Submission", back_populates="receiver", foreign_keys="Submission.ReceiverID")
+    
     reports = relationship("Report", back_populates="user")
     unique_codes = relationship("UniqueCodeGenerator", back_populates="user", cascade="all, delete-orphan")
+    vehicles = relationship("Vehicle", secondary=user_vehicle_association, back_populates="owners")
 
-
-# 3. Bergantung pada entitas utama
 class Wallet(Base):
     __tablename__ = "Wallet"
-
     ID = Column(Integer, primary_key=True, autoincrement=True)
     Saldo = Column(Numeric(15, 2), nullable=False, server_default="0.00")
-
-    UserID = Column(
-        Integer,
-        ForeignKey("User.ID", ondelete="CASCADE"),
-        nullable=False,
-        unique=True,  
-    )
-    WalletTypeID = Column(
-        Integer,
-        ForeignKey("WalletType.ID"),
-        nullable=False,
-    )
+    UserID = Column(Integer, ForeignKey("User.ID", ondelete="CASCADE"), nullable=False, unique=True)
+    WalletTypeID = Column(Integer, ForeignKey("WalletType.ID"), nullable=False)
 
     user = relationship("User", back_populates="wallet")
     wallet_type = relationship("WalletType", back_populates="wallets")
-
 
 class Vehicle(Base):
     __tablename__ = "Vehicle"
@@ -157,25 +109,26 @@ class Vehicle(Base):
     JenisBensin = Column(String(50))
     Merek = Column(String(100))
     FotoFisik = Column(Text)
+    AssetIconName = Column(String(50), nullable=True)
+    AssetIconColor = Column(String(50), nullable=True)
+    TipeTransmisi = Column(String(50), nullable=True) # atau Enum
+    TotalFuelBar = Column(Integer, default=8)         # Default 8 bar misal
+    CurrentFuelBar = Column(Integer, default=0)
 
     vehicle_type = relationship("VehicleType", back_populates="vehicles")
-    submissions = relationship("Submission", back_populates="vehicle")
     reports = relationship("Report", back_populates="vehicle")
-
+    # Submissions relationship removed
+    owners = relationship("User", secondary=user_vehicle_association, back_populates="vehicles")
 
 class UniqueCodeGenerator(Base):
     __tablename__ = "UniqueCodeGenerator"
-
     ID = Column(Integer, primary_key=True, autoincrement=True)
     UserID = Column(Integer, ForeignKey("User.ID", ondelete="CASCADE"), nullable=False)
     KodeUnik = Column(String(100), nullable=False)
     expired_at = Column(DateTime(timezone=True), nullable=False)
     Purpose = Column(SAEnum(PurposeEnum), nullable=False)
-
     user = relationship("User", back_populates="unique_codes")
 
-
-# 4. Tabel Transaksional
 class Submission(Base):
     __tablename__ = "Submission"
     __table_args__ = (UniqueConstraint("KodeUnik", name="uq_submission_kodeunik"),)
@@ -186,31 +139,32 @@ class Submission(Base):
     CreatorID = Column(Integer, ForeignKey("User.ID"), nullable=False)
     ReceiverID = Column(Integer, ForeignKey("User.ID"), nullable=False)
     TotalCashAdvance = Column(Numeric(15, 2), nullable=False)
-    VehicleID = Column(Integer, ForeignKey("Vehicle.ID"), nullable=False)
+    Description = Column(Text, nullable=True)
+    Date = Column(DateTime(timezone=True), nullable=False)
+    # VehicleID REMOVED
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     creator = relationship("User", foreign_keys=[CreatorID], back_populates="created_submissions")
     receiver = relationship("User", foreign_keys=[ReceiverID], back_populates="received_submissions")
-    vehicle = relationship("Vehicle", back_populates="submissions")
-    logs = relationship("SubmissionLog", back_populates="submission", cascade="all, delete-orphan")
-
+    # Vehicle relationship REMOVED
+    logs = relationship("SubmissionLog", back_populates="submission", cascade="all, delete-orphan", order_by="SubmissionLog.Timestamp")
 
 class SubmissionLog(Base):
     __tablename__ = "SubmissionLog"
-
     ID = Column(Integer, primary_key=True, autoincrement=True)
     SubmissionID = Column(Integer, ForeignKey("Submission.ID", ondelete="CASCADE"), nullable=False)
     Status = Column(SAEnum(SubmissionStatusEnum), nullable=False)
     Timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    UpdatedByUserID = Column(Integer, ForeignKey("User.ID"), nullable=True)
+    Notes = Column(Text, nullable=True)
 
     submission = relationship("Submission", back_populates="logs")
-
+    updater = relationship("User", foreign_keys=[UpdatedByUserID])
 
 class Report(Base):
     __tablename__ = "Report"
-
     ID = Column(Integer, primary_key=True, autoincrement=True)
-    KodeUnik = Column(String(100), nullable=False)  # refer ke Submission.KodeUnik (tanpa FK di skema)
+    KodeUnik = Column(String(100), nullable=False) 
     UserID = Column(Integer, ForeignKey("User.ID"), nullable=False)
     VehicleID = Column(Integer, ForeignKey("Vehicle.ID"), nullable=False)
     AmountRupiah = Column(Numeric(15, 2), nullable=False)
@@ -228,18 +182,16 @@ class Report(Base):
 
     user = relationship("User", back_populates="reports")
     vehicle = relationship("Vehicle", back_populates="reports")
-    logs = relationship("ReportLog", back_populates="report", cascade="all, delete-orphan")
-
+    logs = relationship("ReportLog", back_populates="report", cascade="all, delete-orphan", order_by="ReportLog.Timestamp")
 
 class ReportLog(Base):
     __tablename__ = "ReportLog"
-
     ID = Column(Integer, primary_key=True, autoincrement=True)
     ReportID = Column(Integer, ForeignKey("Report.ID", ondelete="CASCADE"), nullable=False)
     Status = Column(SAEnum(ReportStatusEnum), nullable=False)
     Timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    UpdatedByUserID = Column(Integer, ForeignKey("User.ID"), nullable=True)  # User who updated the status
-    Notes = Column(Text, nullable=True)  # Optional notes about the status change
+    UpdatedByUserID = Column(Integer, ForeignKey("User.ID"), nullable=True)
+    Notes = Column(Text, nullable=True)
 
     report = relationship("Report", back_populates="logs")
-
+    updater = relationship("User", foreign_keys=[UpdatedByUserID])

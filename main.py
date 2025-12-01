@@ -7,6 +7,8 @@ from routers import users as users_router, auth as auth_router, dinas as dinas_r
 from routers import vehicle as vehicle_router, wallet as wallet_router, report as report_router, vehicle_type as vehicle_type_router
 from routers import submission as submission_router
 from routers import qr as qr_router
+from routers import stat as stat_router
+from routers import seeder as seeder_router
 from database.database import SessionLocal, engine
 from contextlib import asynccontextmanager
 from middleware import RequestLoggingMiddleware, LanguagePrefixMiddleware, add_exception_handlers
@@ -57,6 +59,9 @@ app.include_router(report_router.router)
 app.include_router(vehicle_type_router.router)
 app.include_router(qr_router.router)
 app.include_router(submission_router.router)
+app.include_router(stat_router.router)
+app.include_router(seeder_router.router)
+
 
 def get_db():
     db = SessionLocal()

@@ -18,47 +18,87 @@ def get_db():
         db.close()
 
 # Wallet Type endpoints
-@router.get("/type", response_model=schemas.SuccessListResponse[schemas.WalletTypeResponse])
+@router.get(
+    "/type", 
+    response_model=schemas.SuccessListResponse[schemas.WalletTypeResponse],
+    summary="List Wallet Types",
+    description="Mendapatkan daftar jenis dompet."
+)
 def list_wallet_types(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.WalletTypeResponse]:
     data = WalletTypeService.list(db)
     return schemas.SuccessListResponse[schemas.WalletTypeResponse](data=data, message=get_message("create_success", None))  # type: ignore
 
-@router.post("/types", response_model=schemas.SuccessResponse[schemas.WalletTypeResponse])
+@router.post(
+    "/types", 
+    response_model=schemas.SuccessResponse[schemas.WalletTypeResponse],
+    summary="Create Wallet Type",
+    description="Membuat jenis dompet baru."
+)
 def create_wallet_type(payload: schemas.WalletTypeBase, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletTypeResponse]:
     created = WalletTypeService.create(db, payload)
     return schemas.SuccessResponse[schemas.WalletTypeResponse](data=created, message=get_message("create_success", None))
 
 # Wallet endpoints
-@router.get("/", response_model=schemas.SuccessListResponse[schemas.WalletResponse])
+@router.get(
+    "/", 
+    response_model=schemas.SuccessListResponse[schemas.WalletResponse],
+    summary="List Wallets",
+    description="Mendapatkan daftar semua wallet."
+)
 def list_wallets(db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.WalletResponse]:
     data = WalletService.list(db)
     return schemas.SuccessListResponse[schemas.WalletResponse](data=data, message=get_message("create_success", None))  # type: ignore
 
-@router.get("/{wallet_id}", response_model=schemas.SuccessResponse[schemas.WalletResponse])
+@router.get(
+    "/{wallet_id}", 
+    response_model=schemas.SuccessResponse[schemas.WalletResponse],
+    summary="Get Wallet",
+    description="Mendapatkan detail wallet berdasarkan ID."
+)
 def get_wallet(wallet_id: int, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletResponse]:
     w = WalletService.get(db, wallet_id)
     if not w:
         raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
     return schemas.SuccessResponse[schemas.WalletResponse](data=w, message=get_message("create_success", None))
 
-@router.get("/user/{user_id}", response_model=schemas.SuccessResponse[schemas.WalletResponse])
+@router.get(
+    "/user/{user_id}", 
+    response_model=schemas.SuccessResponse[schemas.WalletResponse],
+    summary="Get Wallet by User",
+    description="Mendapatkan wallet milik user tertentu."
+)
 def get_wallet_by_user(user_id: int, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletResponse]:
     w = WalletService.get_by_user(db, user_id)
     if not w:
         raise HTTPException(status_code=404, detail="Wallet user tidak ditemukan")
     return schemas.SuccessResponse[schemas.WalletResponse](data=w, message=get_message("create_success", None))
 
-@router.post("/", response_model=schemas.SuccessResponse[schemas.WalletResponse])
+@router.post(
+    "/", 
+    response_model=schemas.SuccessResponse[schemas.WalletResponse],
+    summary="Create Wallet",
+    description="Membuat wallet baru untuk user."
+)
 def create_wallet(payload: schemas.WalletCreate, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletResponse]:
     created = WalletService.create(db, payload)
     return schemas.SuccessResponse[schemas.WalletResponse](data=created, message=get_message("create_success", None))
 
-@router.put("/{wallet_id}", response_model=schemas.SuccessResponse[schemas.WalletResponse])
+@router.put(
+    "/{wallet_id}", 
+    response_model=schemas.SuccessResponse[schemas.WalletResponse],
+    summary="Update Wallet",
+    description="Mengupdate informasi wallet (saldo/tipe)."
+)
 def update_wallet(wallet_id: int, payload: schemas.WalletCreate, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.WalletResponse]:
     updated = WalletService.update(db, wallet_id, payload)
     return schemas.SuccessResponse[schemas.WalletResponse](data=updated, message=get_message("update_success", None))
 
-@router.delete("/{wallet_id}", response_model=schemas.SuccessResponse[schemas.Message])
+@router.delete(
+    "/{wallet_id}", 
+    response_model=schemas.SuccessResponse[schemas.Message],
+    summary="Delete Wallet",
+    description="Menghapus wallet."
+)
 def delete_wallet(wallet_id: int, db: Session = Depends(get_db), _u: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.Message]:
     WalletService.delete(db, wallet_id)
     return schemas.SuccessResponse[schemas.Message](data=schemas.Message(detail="Wallet dihapus"), message=get_message("wallet_delete_success", None))
