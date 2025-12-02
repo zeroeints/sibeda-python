@@ -114,15 +114,15 @@ def patch_user(
 
 @router.get(
     "/stats/count-by-dinas",
-    response_model=schemas.SuccessResponse[schemas.UserCountByDinas],
+    response_model=schemas.SuccessListResponse[schemas.UserCountByDinas],
     summary="Count Users per Dinas",
 )
 def get_user_count_by_dinas(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
-) -> schemas.SuccessResponse[schemas.UserCountByDinas]:
+) -> schemas.SuccessListResponse[schemas.UserCountByDinas]:
     user_counts = UserService.get_user_count_by_dinas(db)
-    return schemas.SuccessResponse[schemas.UserCountByDinas](
+    return schemas.SuccessListResponse[schemas.UserCountByDinas](
         data=user_counts, message="Berhasil mendapatkan total pengguna per dinas"
     )
 

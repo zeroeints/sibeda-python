@@ -54,7 +54,7 @@ def get_my_submissions(
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.PagedListData[schemas.SubmissionResponse]]:
     result = SubmissionService.get_my_submissions(
-        db, current_user.ID, month, year, limit, offset
+        db, current_user.id, month, year, limit, offset
     )
     return schemas.SuccessResponse[schemas.PagedListData[schemas.SubmissionResponse]](
         data=result, message="Daftar pengajuan saya berhasil diambil"
@@ -107,7 +107,7 @@ def update_submission(
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.SubmissionResponse]:
     updated = SubmissionService.update(
-        db, submission_id, payload, user_id=current_user.ID
+        db, submission_id, payload, user_id=current_user.id
     )
     return schemas.SuccessResponse[schemas.SubmissionResponse](
         data=updated, message="Submission berhasil diupdate"
@@ -126,7 +126,7 @@ def patch_submission(
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.SubmissionResponse]:
     updated = SubmissionService.update(
-        db, submission_id, payload, user_id=current_user.ID
+        db, submission_id, payload, user_id=current_user.id
     )
     return schemas.SuccessResponse[schemas.SubmissionResponse](
         data=updated, message="Submission berhasil diupdate"
@@ -168,7 +168,7 @@ def get_monthly_summary(
 
 @router.get(
     "/monthly/details",
-    response_model=schemas.SuccessResponse[schemas.SubmissionResponse],
+    response_model=schemas.SuccessListResponse[schemas.SubmissionResponse],
     summary="Get Monthly Details List (No Pagination)",
 )
 def get_monthly_details(
@@ -176,8 +176,8 @@ def get_monthly_details(
     year: int = Query(...),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
-) -> schemas.SuccessResponse[schemas.SubmissionResponse]:
+) -> schemas.SuccessListResponse[schemas.SubmissionResponse]:
     data = SubmissionService.get_monthly_details_optimized(db, month, year)
-    return schemas.SuccessResponse[schemas.SubmissionResponse](
+    return schemas.SuccessListResponse[schemas.SubmissionResponse](
         data=data, message=f"Detail pengajuan bulan {month}/{year} berhasil diambil"
     )

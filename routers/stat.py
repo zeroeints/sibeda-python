@@ -21,7 +21,7 @@ def get_pic_stats(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.PicStatResponse]:
-    data = StatService.get_pic_stats(db, current_user.ID)
+    data = StatService.get_pic_stats(db, current_user.id)
     return schemas.SuccessResponse[schemas.PicStatResponse](
         data=data, message="Statistik PIC berhasil diambil"
     )
@@ -36,12 +36,12 @@ def get_kadis_stats(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.KadisStatResponse]:
-    if not current_user.DinasID:
+    if not current_user.dinas:
         raise HTTPException(
             status_code=400, detail="User tidak terdaftar dalam dinas manapun"
         )
 
-    data = StatService.get_kadis_stats(db, current_user.DinasID)
+    data = StatService.get_kadis_stats(db, current_user.dinas.id)
     return schemas.SuccessResponse[schemas.KadisStatResponse](
         data=data, message="Statistik Kadis berhasil diambil"
     )

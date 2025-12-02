@@ -194,7 +194,7 @@ class SubmissionService:
         offset: int = 0
     ) -> Dict[str, Any]:
         q = SubmissionService._get_base_query(db)
-        q = q.filter(models.Submission.creator_id == user_id)
+        q = q.filter(models.Submission.receiver_id == user_id)
         
         if month: q = q.filter(extract('month', models.Submission.created_at) == month)
         if year: q = q.filter(extract('year', models.Submission.created_at) == year)

@@ -1,9 +1,25 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Generic, TypeVar, List, Dict
-from datetime import datetime
+from typing import Generic, TypeVar, List, Dict, Annotated
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
+
+
+def serialize_datetime_utc(dt: datetime | None) -> str | None:
+    """Serialize datetime to ISO format with 'Z' suffix for UTC."""
+    if dt is None:
+        return None
+    # If naive datetime, assume it's UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    # Convert to UTC and format with 'Z'
+    utc_dt = dt.astimezone(timezone.utc)
+    return utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# Custom datetime type that serializes to UTC with 'Z' suffix
+DateTimeUTC = Annotated[datetime, PlainSerializer(serialize_datetime_utc, return_type=str)]
 
 T = TypeVar("T")
 
@@ -103,7 +119,7 @@ class VehicleSimpleResponse(BaseModel):
 class SubmissionLogResponse(BaseModel):
     id: int
     status: SubmissionStatusEnum
-    timestamp: datetime
+    timestamp: DateTimeUTC
     updated_by_user_id: int | None = None
     notes: str | None = None
     
@@ -112,7 +128,7 @@ class SubmissionLogResponse(BaseModel):
 class ReportLogResponse(BaseModel):
     id: int
     status: ReportStatusEnum
-    timestamp: datetime
+    timestamp: DateTimeUTC
     updated_by_user_id: int | None = None
     notes: str | None = None
     
@@ -332,7 +348,7 @@ class RefuelHistoryItem(BaseModel):
     kode_unik: str
     amount_rupiah: float
     amount_liter: float
-    timestamp: datetime
+    timestamp: DateTimeUTC
     odometer: int | None = None
     
     model_config = ConfigDict(from_attributes=True)
@@ -342,7 +358,7 @@ class MyVehicleResponse(VehicleResponse):
     total_reports: int = 0
     total_fuel_liters: float = 0.0
     total_rupiah_spent: float = 0.0
-    last_refuel_date: datetime | None = None
+    last_refuel_date: DateTimeUTC | None = None
     
 class VehicleDetailResponse(MyVehicleResponse):
     recent_refuel_history: List[RefuelHistoryItem] = Field(default_factory=list)
@@ -356,7 +372,7 @@ class SubmissionCreate(BaseModel):
     receiver_id: int
     total_cash_advance: float
     description: str | None = None
-    date: datetime 
+    date: DateTimeUTC 
     status: SubmissionStatusEnum | None = None
 
 class SubmissionUpdate(BaseModel):
@@ -376,11 +392,11 @@ class SubmissionResponse(BaseModel):
     dinas: DinasSimpleResponse | None = None
     
     description: str | None = None
-    date: datetime | None = None
+    date: DateTimeUTC | None = None
     
     total_cash_advance: float
     status: SubmissionStatusEnum
-    created_at: datetime
+    created_at: DateTimeUTC
     
     logs: List[SubmissionLogResponse] = Field(default_factory=list)
     
@@ -453,7 +469,7 @@ class ReportResponse(BaseModel):
     amount_liter: float
     description: str | None = None
     status: ReportStatusEnum
-    timestamp: datetime
+    timestamp: DateTimeUTC
     latitude: float | None = None
     longitude: float | None = None
     

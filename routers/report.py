@@ -64,7 +64,7 @@ def get_my_reports(
 ) -> schemas.SuccessResponse[schemas.PagedListData[schemas.MyReportResponse]]:
     
     result = ReportService.get_my_reports(
-        db, current_user.ID, vehicle_id, month, year, limit, offset
+        db, current_user.id, vehicle_id, month, year, limit, offset
     )
     return schemas.SuccessResponse[schemas.PagedListData[schemas.MyReportResponse]](
         data=result, message="Daftar laporan saya berhasil diambil"
@@ -97,19 +97,19 @@ def get_report(
     description="Membuat laporan penggunaan dana/BBM dengan upload bukti foto.",
 )
 async def create_report(
-    kode_unik: str = Form(..., alias="KodeUnik"),
-    user_id: int = Form(..., alias="UserID"),
-    vehicle_id: int = Form(..., alias="VehicleID"),
-    amount_rupiah: float = Form(..., alias="AmountRupiah"),
-    amount_liter: float = Form(..., alias="AmountLiter"),
-    description: Optional[str] = Form(None, alias="Description"),
-    latitude: Optional[float] = Form(None, alias="Latitude"),
-    longitude: Optional[float] = Form(None, alias="Longitude"),
-    odometer: Optional[int] = Form(None, alias="Odometer"),
-    vehicle_physical_photo: Optional[UploadFile] = File(None, alias="VehiclePhysicalPhoto"),
-    odometer_photo: Optional[UploadFile] = File(None, alias="OdometerPhoto"),
-    invoice_photo: Optional[UploadFile] = File(None, alias="InvoicePhoto"),
-    my_pertamina_photo: Optional[UploadFile] = File(None, alias="MyPertaminaPhoto"),
+    kode_unik: str = Form(...),
+    user_id: int = Form(...),
+    vehicle_id: int = Form(...),
+    amount_rupiah: float = Form(...),
+    amount_liter: float = Form(...),
+    description: Optional[str] = Form(None),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+    odometer: Optional[int] = Form(None),
+    vehicle_physical_photo: Optional[UploadFile] = File(None),
+    odometer_photo: Optional[UploadFile] = File(None),
+    invoice_photo: Optional[UploadFile] = File(None),
+    my_pertamina_photo: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.ReportResponse]:
@@ -142,19 +142,19 @@ async def create_report(
 )
 async def update_report(
     report_id: int,
-    kode_unik: Optional[str] = Form(None, alias="KodeUnik"),
-    user_id: Optional[int] = Form(None, alias="UserID"),
-    vehicle_id: Optional[int] = Form(None, alias="VehicleID"),
-    amount_rupiah: Optional[float] = Form(None, alias="AmountRupiah"),
-    amount_liter: Optional[float] = Form(None, alias="AmountLiter"),
-    description: Optional[str] = Form(None, alias="Description"),
-    latitude: Optional[float] = Form(None, alias="Latitude"),
-    longitude: Optional[float] = Form(None, alias="Longitude"),
-    odometer: Optional[int] = Form(None, alias="Odometer"),
-    vehicle_physical_photo: Optional[UploadFile] = File(None, alias="VehiclePhysicalPhoto"),
-    odometer_photo: Optional[UploadFile] = File(None, alias="OdometerPhoto"),
-    invoice_photo: Optional[UploadFile] = File(None, alias="InvoicePhoto"),
-    my_pertamina_photo: Optional[UploadFile] = File(None, alias="MyPertaminaPhoto"),
+    kode_unik: Optional[str] = Form(None),
+    user_id: Optional[int] = Form(None),
+    vehicle_id: Optional[int] = Form(None),
+    amount_rupiah: Optional[float] = Form(None),
+    amount_liter: Optional[float] = Form(None),
+    description: Optional[str] = Form(None),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+    odometer: Optional[int] = Form(None),
+    vehicle_physical_photo: Optional[UploadFile] = File(None),
+    odometer_photo: Optional[UploadFile] = File(None),
+    invoice_photo: Optional[UploadFile] = File(None),
+    my_pertamina_photo: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.ReportResponse]:

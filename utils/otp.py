@@ -178,18 +178,18 @@ def get_or_create_qr_code(db: Session, user: 'User') -> 'UniqueCodeGenerator':
   
     now = _utc_now()
     rec = db.query(models.UniqueCodeGenerator).filter(
-        models.UniqueCodeGenerator.UserID == user.ID,
-        models.UniqueCodeGenerator.Purpose == PurposeEnum.otp,
-    ).order_by(models.UniqueCodeGenerator.ID.desc()).first()
+        models.UniqueCodeGenerator.user_id == user.id,
+        models.UniqueCodeGenerator.purpose == PurposeEnum.otp,
+    ).order_by(models.UniqueCodeGenerator.id.desc()).first()
     if rec is not None:
         exp_val = getattr(rec, "expired_at", None)
         if isinstance(exp_val, datetime) and _to_utc(exp_val) > now:
             return rec
     # else create new
     new_rec = models.UniqueCodeGenerator(
-        UserID=user.ID,
-        KodeUnik=generate_otp(),
-        Purpose=PurposeEnum.otp,
+        user_id=user.id,
+        kode_unik=generate_otp(),
+        purpose=PurposeEnum.otp,
         expired_at=now + timedelta(minutes=OTP_EXP_MINUTES),
     )
     db.add(new_rec)
