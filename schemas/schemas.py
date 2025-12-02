@@ -1,23 +1,13 @@
-from pydantic import BaseModel, Field, field_validator
+from __future__ import annotations
 from enum import Enum
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, List, Dict
 from datetime import datetime
+
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 T = TypeVar("T")
 
-class SuccessResponse(BaseModel, Generic[T]):
-    success: bool = True
-    data: T
-    message: str | None = None
-
-class SuccessListResponse(SuccessResponse[list[T]], Generic[T]):  # convenience alias for lists
-    pass
-
-class PaginatedResponse(BaseModel, Generic[T]):
-    success: bool = True
-    data: list[T]
-    message: str | None = None
-    pagination: dict[str, int | bool]
+# --- Enums ---
 
 class RoleEnum(str, Enum):
     admin = "admin"
@@ -25,128 +15,172 @@ class RoleEnum(str, Enum):
     pic = "pic"
 
 class VehicleStatusEnum(str, Enum):
-    Active = "Active"
-    Nonactive = "Nonactive"
+    active = "Active"
+    nonactive = "Nonactive"
 
 class SubmissionStatusEnum(str, Enum):
-    Accepted = "Accepted"
-    Rejected = "Rejected"
-    Pending = "Pending"
+    accepted = "Accepted"
+    rejected = "Rejected"
+    pending = "Pending"
 
 class ReportStatusEnum(str, Enum):
-    Pending = "Pending"
-    Reviewed = "Reviewed"
-    Accepted = "Accepted"
-    Rejected = "Rejected"
+    pending = "Pending"
+    reviewed = "Reviewed"
+    accepted = "Accepted"
+    rejected = "Rejected"
 
-class UserBase(BaseModel):
-    NIP: str = Field(..., min_length=18, max_length=50, description="Nomor Induk Pegawai minimal 18 karakter")
-    NamaLengkap: str
-    Email: str
-    NoTelepon: str | None = None
 
-    @field_validator("NIP")
-    @classmethod
-    def nip_strip(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 18:
-            raise ValueError("NIP minimal 18 karakter")
-        return v
+# --- Base Response Wrappers ---
 
-class UserCreate(UserBase):
-    Password: str = Field(..., min_length=8, max_length=255, description="Password minimal 8 karakter")
+class SuccessResponse(BaseModel, Generic[T]):
+    success: bool = True
+    data: T
+    message: str | None = None
 
-    @field_validator("Password")
-    @classmethod
-    def password_strip(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 8:
-            raise ValueError("Password minimal 8 karakter")
-        return v
+class PagedListData(BaseModel, Generic[T]):
+    list: List[T]
+    limit: int
+    offset: int
+    has_more: bool
+    month: int | None = None
+    year: int | None = None
+    stat: Dict[str, int] = Field(default_factory=dict)
 
-class UserUpdate(BaseModel):
-    """Schema untuk update user. Semua field optional."""
-    NIP: str | None = Field(None, min_length=18, max_length=50, description="Nomor Induk Pegawai minimal 18 karakter")
-    NamaLengkap: str | None = None
-    Email: str | None = None
-    NoTelepon: str | None = None
-    Password: str | None = Field(None, min_length=8, max_length=255, description="Password minimal 8 karakter")
-    Role: RoleEnum | None = None
-    DinasID: int | None = None
-    
-    @field_validator("NIP")
-    @classmethod
-    def nip_strip(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        v = v.strip()
-        if len(v) < 18:
-            raise ValueError("NIP minimal 18 karakter")
-        return v
-    
-    @field_validator("Password")
-    @classmethod
-    def password_strip(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        v = v.strip()
-        if len(v) < 8:
-            raise ValueError("Password minimal 8 karakter")
-        return v
+class SuccessListResponse(SuccessResponse[List[T]], Generic[T]):
+    pass
 
-class LoginJSON(BaseModel):
-    NIP: str
-    Password: str
+class PaginatedResponse(BaseModel, Generic[T]):
+    success: bool = True
+    data: List[T]
+    message: str | None = None
+    pagination: Dict[str, int | bool]
 
-class UserResponse(UserBase):
-    ID: int
-    Role: RoleEnum
-    isVerified: bool | None = None  # tambahkan agar pydantic bisa serialize kolom baru
+class Message(BaseModel):
+    detail: str
 
-    class Config:
-        from_attributes = True 
 
-class UserDetailResponse(BaseModel):
-    """User dengan detail lengkap termasuk wallet dan dinas"""
-    ID: int
-    NIP: str
-    NamaLengkap: str
-    Email: str
-    NoTelepon: str | None = None
-    Role: RoleEnum
-    isVerified: bool | None = None
-    DinasID: int | None = None
-    DinasNama: str | None = None
-    # Wallet info
-    WalletID: int | None = None
-    WalletSaldo: float | None = None
-    WalletType: str | None = None
-    # Vehicle count
-    TotalSubmissionsCreated: int = 0
-    TotalSubmissionsReceived: int = 0
+# --- Simple Models (Nested Responses) ---
 
-    class Config:
-        from_attributes = True
-
-class UserBalanceResponse(BaseModel):
-    """Response untuk saldo user"""
-    user_id: int
+class UserSimpleResponse(BaseModel):
+    id: int
     nip: str
     nama_lengkap: str
+    role: RoleEnum
     email: str
-    role: str
+    no_telepon: str | None = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class VehicleTypeResponse(BaseModel):
+    id: int
+    nama: str
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class DinasSimpleResponse(BaseModel):
+    id: int
+    nama: str
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class VehicleSimpleResponse(BaseModel):
+    id: int
+    nama: str
+    plat: str
+    status: VehicleStatusEnum
+    
+    # Nested Relationships
+    vehicle_type: VehicleTypeResponse | None = None
+    
+    asset_icon_name: str | None = None
+    asset_icon_color: str | None = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Log Models ---
+
+class SubmissionLogResponse(BaseModel):
+    id: int
+    status: SubmissionStatusEnum
+    timestamp: datetime
+    updated_by_user_id: int | None = None
+    notes: str | None = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class ReportLogResponse(BaseModel):
+    id: int
+    status: ReportStatusEnum
+    timestamp: datetime
+    updated_by_user_id: int | None = None
+    notes: str | None = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- User Schemas ---
+
+class UserBase(BaseModel):
+    nip: str = Field(..., min_length=18, max_length=50)
+    nama_lengkap: str
+    email: str
+    no_telepon: str | None = None
+
+    @field_validator("nip")
+    @classmethod
+    def nip_strip(cls, v: str) -> str:
+        return v.strip()
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=8)
+
+class UserUpdate(BaseModel):
+    nip: str | None = None
+    nama_lengkap: str | None = None
+    email: str | None = None
+    no_telepon: str | None = None
+    password: str | None = None
+    role: RoleEnum | None = None
     dinas_id: int | None = None
+
+class UserResponse(UserBase):
+    id: int
+    role: RoleEnum
+    is_verified: bool | None = None
+    
+    # Relationships
+    dinas: DinasSimpleResponse | None = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class UserDetailResponse(UserResponse):
+    # Field tambahan hasil query manual (tetap butuh alias jika query mengembalikan nama spesifik, 
+    # tapi jika query di service sudah disesuaikan ke snake_case, alias bisa dihapus).
+    # Kita asumsikan Service juga akan diperbaiki untuk return dict dengan key snake_case.
+    wallet_id: int | None = None
+    wallet_saldo: float | None = None
+    wallet_type: str | None = None
+    
+    total_submissions_created: int = 0
+    total_submissions_received: int = 0
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class UserBalanceResponse(BaseModel):
+    user: UserSimpleResponse
     dinas_nama: str | None = None
     wallet_id: int
     saldo: float
-    wallet_type_id: int
-    wallet_type_nama: str | None = None
+    wallet_type: str | None = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True
 
-class UserLogin(BaseModel):
-    email: str
+# --- Auth Schemas ---
+
+class LoginJSON(BaseModel):
+    nip: str
     password: str
 
 class Token(BaseModel):
@@ -154,385 +188,20 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 class TokenClaims(BaseModel):
-    sub: str
-    ID: int | None = None
-    NIP: str | None = None
-    Role: list[str] | None = None
-    NamaLengkap: str | None = None
-    Email: str | None = None
-    NoTelepon: str | None = None
-    DinasID: int | None = None
-    Dinas: dict[str, int | str | None] | None = None
-    isVerified: bool | None = None
-    exp: int | None = None  # epoch seconds
+    sub: str | None = None
+    id: int | None = None
+    role: List[str] | str | None = None
+    exp: int | None = None
 
 class TokenVerifyData(BaseModel):
     valid: bool
     claims: TokenClaims | None = None
     reason: str | None = None
 
-class DinasBase(BaseModel):
-    Nama: str
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
 
-class DinasResponse(DinasBase):
-    ID: int
-    class Config:
-        from_attributes = True    
-
-class WalletTypeBase(BaseModel):
-    Nama: str
-
-class WalletTypeResponse(WalletTypeBase):
-    ID: int
-    class Config:
-        from_attributes = True
-  
-class WalletBase(BaseModel):
-    UserID: int
-    Saldo: float
-    WalletTypeID: int
-
-class WalletCreate(WalletBase):
-    pass
-class WalletResponse(WalletBase):
-    ID: int
-    class Config:
-        from_attributes = True
-
-class DinasListResponse(BaseModel):
-    status_code: int
-    message: str
-    data: list[DinasResponse]
-
-class VehicleTypeBase(BaseModel):
-    Nama: str
-
-class VehicleTypeResponse(VehicleTypeBase):
-    ID: int
-    class Config:
-        from_attributes = True
-
-class VehicleCreate(BaseModel):
-    Nama: str
-    Plat: str
-    VehicleTypeID: int
-    KapasitasMesin: int | None = None
-    Odometer: int | None = None
-    Status: VehicleStatusEnum | None = None  
-    JenisBensin: str | None = None
-    Merek: str | None = None
-    FotoFisik: str | None = None
-
-class VehicleResponse(BaseModel):
-    ID: int
-    Nama: str
-    Plat: str
-    VehicleTypeID: int
-    KapasitasMesin: int | None = None
-    Odometer: int | None = None
-    Status: VehicleStatusEnum
-    JenisBensin: str | None = None
-    Merek: str | None = None
-    FotoFisik: str | None = None
-
-    class Config:
-        from_attributes = True
-
-class MyVehicleResponse(BaseModel):
-    """Response untuk kendaraan user dengan detail penggunaan"""
-    ID: int
-    Nama: str
-    Plat: str
-    Merek: str | None = None
-    KapasitasMesin: int | None = None
-    JenisBensin: str | None = None
-    Odometer: int | None = None
-    Status: str
-    FotoFisik: str | None = None
-    VehicleTypeID: int
-    VehicleTypeName: str | None = None
-    # User usage statistics
-    TotalSubmissions: int = 0
-    TotalReports: int = 0
-    TotalFuelLiters: float = 0.0
-    TotalRupiahSpent: float = 0.0
-    # Latest refuel info
-    LastRefuelDate: str | None = None
-    LastRefuelLiters: float | None = None
-    LastRefuelRupiah: float | None = None
-    LastOdometer: int | None = None
-
-    class Config:
-        from_attributes = True
-
-class RefuelHistoryItem(BaseModel):
-    """Item riwayat pengisian bensin"""
-    ID: int
-    KodeUnik: str
-    AmountRupiah: float
-    AmountLiter: float
-    Description: str | None = None
-    Timestamp: str
-    Odometer: int | None = None
-    Latitude: float | None = None
-    Longitude: float | None = None
-
-class VehicleDetailResponse(BaseModel):
-    """Response detail lengkap kendaraan dengan riwayat pengisian"""
-    ID: int
-    Nama: str
-    Plat: str
-    Merek: str | None = None
-    KapasitasMesin: int | None = None
-    JenisBensin: str | None = None
-    Odometer: int | None = None
-    Status: str
-    FotoFisik: str | None = None
-    VehicleTypeID: int
-    VehicleTypeName: str | None = None
-    # Statistics
-    TotalSubmissions: int = 0
-    TotalReports: int = 0
-    TotalFuelLiters: float = 0.0
-    TotalRupiahSpent: float = 0.0
-    # Recent refuel history
-    RecentRefuelHistory: list[RefuelHistoryItem] = []
-
-    class Config:
-        from_attributes = True
-
-class Message(BaseModel):
-    detail: str
-
-# ------------------- Report Schemas -------------------
-class ReportBase(BaseModel):
-    KodeUnik: str
-    UserID: int
-    VehicleID: int
-    AmountRupiah: float
-    AmountLiter: float
-    Description: str | None = None
-    Status: ReportStatusEnum | None = None
-    Latitude: float | None = None
-    Longitude: float | None = None
-    VehiclePhysicalPhotoPath: str | None = None
-    OdometerPhotoPath: str | None = None
-    InvoicePhotoPath: str | None = None
-    MyPertaminaPhotoPath: str | None = None
-    Odometer: int | None = None
-
-class ReportCreateForm(BaseModel):
-    """Schema untuk create report dengan form data (tanpa file)"""
-    KodeUnik: str
-    UserID: int
-    VehicleID: int
-    AmountRupiah: float
-    AmountLiter: float
-    Description: str | None = None
-    Latitude: float | None = None
-    Longitude: float | None = None
-    Odometer: int | None = None
-
-class ReportCreate(ReportBase):
-    pass
-
-class ReportUpdate(BaseModel):
-    # semua optional agar partial update bisa dilakukan (PUT/POST semantics kept simple)
-    KodeUnik: str | None = None
-    UserID: int | None = None
-    VehicleID: int | None = None
-    AmountRupiah: float | None = None
-    AmountLiter: float | None = None
-    Description: str | None = None
-    Status: ReportStatusEnum | None = None
-    Latitude: float | None = None
-    Longitude: float | None = None
-    VehiclePhysicalPhotoPath: str | None = None
-    OdometerPhotoPath: str | None = None
-    InvoicePhotoPath: str | None = None
-    MyPertaminaPhotoPath: str | None = None
-    Odometer: int | None = None
-
-class ReportResponse(ReportBase):
-    ID: int
-    Status: ReportStatusEnum | None = None
-    Timestamp: datetime | None = None
-
-    class Config:
-        from_attributes = True
-
-class MyReportResponse(BaseModel):
-    """Response untuk report user dengan detail vehicle dan submission"""
-    ID: int
-    KodeUnik: str
-    UserID: int
-    VehicleID: int
-    VehicleName: str | None = None
-    VehiclePlat: str | None = None
-    VehicleType: str | None = None
-    AmountRupiah: float
-    AmountLiter: float
-    Description: str | None = None
-    Status: str
-    Timestamp: str | None = None
-    Latitude: float | None = None
-    Longitude: float | None = None
-    Odometer: int | None = None
-    VehiclePhysicalPhotoPath: str | None = None
-    OdometerPhotoPath: str | None = None
-    InvoicePhotoPath: str | None = None
-    MyPertaminaPhotoPath: str | None = None
-    # Submission info
-    SubmissionStatus: str | None = None
-    SubmissionTotal: float | None = None
-
-    class Config:
-        from_attributes = True
-
-class VehicleInfo(BaseModel):
-    """Info kendaraan untuk detail report"""
-    ID: int
-    Nama: str
-    Plat: str
-    Merek: str | None = None
-    KapasitasMesin: int | None = None
-    JenisBensin: str | None = None
-    Odometer: int | None = None
-    Status: str
-    VehicleType: str | None = None
-
-class SubmissionInfo(BaseModel):
-    """Info submission untuk detail report"""
-    ID: int
-    KodeUnik: str
-    Status: str
-    TotalCashAdvance: float
-    CreatorID: int
-    CreatorName: str | None = None
-    ReceiverID: int
-    ReceiverName: str | None = None
-    CreatedAt: str | None = None
-
-class PhotoPaths(BaseModel):
-    """Path foto-foto report"""
-    VehiclePhysical: str | None = None
-    Odometer: str | None = None
-    Invoice: str | None = None
-    MyPertamina: str | None = None
-
-class ReportLogResponse(BaseModel):
-    """Response untuk log perubahan status report"""
-    ID: int
-    ReportID: int
-    Status: str
-    Timestamp: str
-    UpdatedByUserID: int | None = None
-    UpdatedByUserName: str | None = None
-    Notes: str | None = None
-
-    class Config:
-        from_attributes = True
-
-class ReportDetailResponse(BaseModel):
-    """Response detail lengkap report"""
-    ID: int
-    KodeUnik: str
-    UserID: int
-    UserName: str | None = None
-    UserNIP: str | None = None
-    VehicleID: int
-    Vehicle: VehicleInfo | None = None
-    AmountRupiah: float
-    AmountLiter: float
-    Description: str | None = None
-    Status: str
-    Timestamp: str | None = None
-    Latitude: float | None = None
-    Longitude: float | None = None
-    Odometer: int | None = None
-    Photos: PhotoPaths
-    Submission: SubmissionInfo | None = None
-    Logs: list[ReportLogResponse] = []  # History tracking perubahan status
-
-    class Config:
-        from_attributes = True
-
-class ReportStatusUpdateRequest(BaseModel):
-    """Request untuk update status report"""
-    Status: ReportStatusEnum
-    Notes: str | None = Field(None, description="Catatan optional untuk perubahan status")
-
-# ------------------- Submission Schemas -------------------
-class SubmissionBase(BaseModel):
-    KodeUnik: str
-    CreatorID: int
-    ReceiverID: int
-    TotalCashAdvance: float
-    VehicleID: int
-    Status: SubmissionStatusEnum | None = None
-
-class SubmissionCreate(SubmissionBase):
-    pass
-
-class SubmissionUpdate(BaseModel):
-    KodeUnik: str | None = None
-    CreatorID: int | None = None
-    ReceiverID: int | None = None
-    TotalCashAdvance: float | None = None
-    VehicleID: int | None = None
-    Status: SubmissionStatusEnum | None = None
-
-class SubmissionResponse(BaseModel):
-    ID: int
-    KodeUnik: str
-    CreatorID: int
-    ReceiverID: int
-    TotalCashAdvance: float
-    VehicleID: int
-    Status: SubmissionStatusEnum  # concrete in response
-    created_at: datetime | None = None
-
-    class Config:
-        from_attributes = True
-
-# ------------------- Submission Summary & Detail Schemas -------------------
-class SubmissionDetailResponse(BaseModel):
-    """Detail pengajuan dengan informasi lengkap"""
-    ID: int
-    KodeUnik: str
-    CreatorID: int
-    CreatorName: str
-    ReceiverID: int
-    ReceiverName: str
-    TotalCashAdvance: float
-    VehicleID: int
-    VehicleName: str
-    VehiclePlat: str
-    Status: SubmissionStatusEnum
-    created_at: datetime | None = None
-
-    class Config:
-        from_attributes = True
-
-class SubmissionSummary(BaseModel):
-    """Ringkasan pengajuan per bulan"""
-    month: int  # 1-12
-    year: int
-    total_submissions: int
-    total_pending: int
-    total_accepted: int
-    total_rejected: int
-    total_cash_advance: float
-    total_cash_advance_accepted: float
-    total_cash_advance_rejected: float
-    total_cash_advance_pending: float
-
-class SubmissionMonthlyReport(BaseModel):
-    """Laporan bulanan dengan ringkasan dan detail"""
-    summary: SubmissionSummary
-    details: list[SubmissionDetailResponse]
-
-# ------------------- Password Reset / OTP Schemas -------------------
 class ForgotPasswordRequest(BaseModel):
     email: str
 
@@ -545,42 +214,317 @@ class ResetPasswordRequest(BaseModel):
     otp: str
     new_password: str
 
-class ChangePasswordRequest(BaseModel):
-    """Request schema untuk change password dengan validasi old password"""
-    old_password: str = Field(..., min_length=1, description="Password lama untuk validasi")
-    new_password: str = Field(..., min_length=8, max_length=255, description="Password baru minimal 8 karakter")
-    
-    @field_validator("new_password")
-    @classmethod
-    def password_strength(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 8:
-            raise ValueError("Password baru minimal 8 karakter")
-        return v
-
 class OTPVerifyResponse(BaseModel):
     valid: bool
     reason: str | None = None
 
-# ------------------- User Stats Schemas -------------------
-class UserCountByDinas(BaseModel):
-    """Schema untuk total pengguna per dinas"""
+
+# --- Dinas & Wallet Type ---
+
+class DinasBase(BaseModel):
+    nama: str
+
+class DinasResponse(DinasBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class WalletTypeBase(BaseModel):
+    nama: str
+
+class WalletTypeResponse(WalletTypeBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class WalletCreate(BaseModel):
+    user_id: int
+    wallet_type_id: int
+    saldo: float = 0
+
+class WalletResponse(BaseModel):
+    id: int
+    user: UserSimpleResponse
+    wallet_type: WalletTypeResponse
+    saldo: float
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class WalletUpdate(BaseModel):
+    user_id: int | None = None
+    wallet_type_id: int | None = None
+    saldo: float | None = None
+
+
+# --- Vehicle Schemas ---
+
+class VehicleCreate(BaseModel):
+    nama: str
+    plat: str
+    vehicle_type_id: int
     dinas_id: int | None = None
+    
+    kapasitas_mesin: int | None = None
+    odometer: int | None = None
+    status: VehicleStatusEnum | None = None
+    jenis_bensin: str | None = None
+    merek: str | None = None
+    
+    foto_fisik: str | None = None
+    asset_icon_name: str | None = None
+    asset_icon_color: str | None = None
+    tipe_transmisi: str | None = None
+    total_fuel_bar: int | None = None
+    current_fuel_bar: int | None = None
+
+class VehicleUpdate(BaseModel):
+    nama: str | None = None
+    plat: str | None = None
+    vehicle_type_id: int | None = None
+    dinas_id: int | None = None
+    
+    kapasitas_mesin: int | None = None
+    odometer: int | None = None
+    status: VehicleStatusEnum | None = None
+    jenis_bensin: str | None = None
+    merek: str | None = None
+    
+    foto_fisik: str | None = None
+    asset_icon_name: str | None = None
+    asset_icon_color: str | None = None
+
+class VehicleTypeUpdate(BaseModel):
+    nama: str | None = None
+
+class VehicleResponse(BaseModel):
+    id: int
+    nama: str
+    plat: str
+    status: VehicleStatusEnum
+    
+    # Relations
+    vehicle_type: VehicleTypeResponse | None = None
+    dinas: DinasSimpleResponse | None = None
+    
+    kapasitas_mesin: int | None = None
+    odometer: int | None = None
+    jenis_bensin: str | None = None
+    merek: str | None = None
+    
+    # Visuals
+    foto_fisik: str | None = None
+    asset_icon_name: str | None = None
+    asset_icon_color: str | None = None
+    
+    tipe_transmisi: str | None = None
+    total_fuel_bar: int | None = None
+    current_fuel_bar: int | None = None
+    dinas_id: int | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class VehicleAssignmentRequest(BaseModel):
+    user_id: int
+
+class UserAssignmentRequest(BaseModel):
+    vehicle_id: int
+
+class RefuelHistoryItem(BaseModel):
+    id: int
+    kode_unik: str
+    amount_rupiah: float
+    amount_liter: float
+    timestamp: datetime
+    odometer: int | None = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class MyVehicleResponse(VehicleResponse):
+    total_submissions: int = 0
+    total_reports: int = 0
+    total_fuel_liters: float = 0.0
+    total_rupiah_spent: float = 0.0
+    last_refuel_date: datetime | None = None
+    
+class VehicleDetailResponse(MyVehicleResponse):
+    recent_refuel_history: List[RefuelHistoryItem] = Field(default_factory=list)
+
+
+# --- Submission Schemas ---
+
+class SubmissionCreate(BaseModel):
+    kode_unik: str
+    creator_id: int
+    receiver_id: int
+    total_cash_advance: float
+    description: str | None = None
+    date: datetime 
+    status: SubmissionStatusEnum | None = None
+
+class SubmissionUpdate(BaseModel):
+    kode_unik: str | None = None
+    creator_id: int | None = None
+    receiver_id: int | None = None
+    total_cash_advance: float | None = None
+    status: SubmissionStatusEnum | None = None
+
+class SubmissionResponse(BaseModel):
+    id: int
+    kode_unik: str
+    
+    # Relations
+    creator: UserSimpleResponse
+    receiver: UserSimpleResponse
+    dinas: DinasSimpleResponse | None = None
+    
+    description: str | None = None
+    date: datetime | None = None
+    
+    total_cash_advance: float
+    status: SubmissionStatusEnum
+    created_at: datetime
+    
+    logs: List[SubmissionLogResponse] = Field(default_factory=list)
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class SubmissionSummary(BaseModel):
+    month: int
+    year: int
+    total_submissions: int
+    total_pending: int
+    total_accepted: int
+    total_rejected: int
+    total_cash_advance: float
+    total_cash_advance_accepted: float
+    total_cash_advance_rejected: float
+    total_cash_advance_pending: float
+
+class SubmissionMonthlyReport(BaseModel):
+    summary: SubmissionSummary
+    details: List[SubmissionResponse]
+
+
+# --- Report Schemas ---
+
+class ReportCreate(BaseModel):
+    kode_unik: str
+    user_id: int
+    vehicle_id: int
+    amount_rupiah: float
+    amount_liter: float
+    
+    description: str | None = None
+    status: ReportStatusEnum | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    odometer: int | None = None
+    
+    vehicle_physical_photo_path: str | None = None
+    odometer_photo_path: str | None = None
+    invoice_photo_path: str | None = None
+    my_pertamina_photo_path: str | None = None
+
+class ReportUpdate(BaseModel):
+    kode_unik: str | None = None
+    user_id: int | None = None
+    vehicle_id: int | None = None
+    amount_rupiah: float | None = None
+    amount_liter: float | None = None
+    description: str | None = None
+    status: ReportStatusEnum | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    odometer: int | None = None
+    
+    vehicle_physical_photo_path: str | None = None
+    odometer_photo_path: str | None = None
+    invoice_photo_path: str | None = None
+    my_pertamina_photo_path: str | None = None
+
+class ReportResponse(BaseModel):
+    id: int
+    kode_unik: str
+    
+    # Relations
+    user: UserSimpleResponse
+    vehicle: VehicleSimpleResponse
+    dinas: DinasSimpleResponse | None = None
+    
+    amount_rupiah: float
+    amount_liter: float
+    description: str | None = None
+    status: ReportStatusEnum
+    timestamp: datetime
+    latitude: float | None = None
+    longitude: float | None = None
+    
+    # Photos
+    vehicle_physical_photo_path: str | None = None
+    odometer_photo_path: str | None = None
+    invoice_photo_path: str | None = None
+    my_pertamina_photo_path: str | None = None
+    odometer: int | None = None
+    
+    logs: List[ReportLogResponse] = Field(default_factory=list)
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class ReportStatusUpdateRequest(BaseModel):
+    status: ReportStatusEnum
+    notes: str | None = None
+
+class MyReportResponse(ReportResponse):
+    submission_status: str | None = None
+    submission_total: float | None = None
+
+class ReportDetailResponse(ReportResponse):
+    submission: SubmissionResponse | None = None
+
+
+# --- Stats Schemas ---
+
+class MonthlyData(BaseModel):
+    month: int
+    value: float
+
+class PicStatResponse(BaseModel):
+    vehicle_count: int
+    report_count: int
+    average: float
+    money_usage: List[MonthlyData]
+
+class KadisStatResponse(BaseModel):
+    dinas_proposal_count: int
+    dinas_report_count: int
+    dinas_proposal_monthly: List[MonthlyData]
+    dinas_proposal_average: float
+    dinas_money_usage_monthly: List[MonthlyData]
+    dinas_money_usage_average: float
+
+class AdminStatResponse(BaseModel):
+    dinas_vehicle_count: int
+    dinas_users_count: int
+    dinas_report_pending_count: int
+    dinas_proposal_made_count: int
+    dinas_proposal_monthly: List[MonthlyData]
+    dinas_proposal_average: float
+    dinas_money_usage_monthly: List[MonthlyData]
+
+class UserCountByDinas(BaseModel):
+    dinas_id: int | None
     dinas_nama: str
     total_users: int
-    
-    class Config:
-        from_attributes = True
 
-# ------------------- QR Schemas -------------------
+
+# --- QR Schemas ---
+
 class QRAssignRequest(BaseModel):
-    NIP: str
-    UniqueCode: str
-    DinasID: int
+    nip: str
+    unique_code: str
+    dinas_id: int
 
 class QRGetResponse(BaseModel):
     code: str | None = None
-    expiresAt: str | None = None
+    expires_at: str | None = Field(default=None, serialization_alias="expiresAt") # camelCase untuk frontend
 
 class QRScanRequest(BaseModel):
-    kode_unik: str = Field(..., description="QR code input (signed token atau raw code)")
+    kode_unik: str

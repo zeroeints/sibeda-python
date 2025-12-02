@@ -11,17 +11,18 @@ class DinasService:
         return db.query(models.Dinas).all()
 
     @staticmethod
-    def create(db: Session, dinas_in: schemas.DinasBase) -> models.Dinas:
-        d = models.Dinas(Nama=dinas_in.Nama)
-        db.add(d)
+    def create(db: Session, payload: schemas.DinasBase) -> models.Dinas:
+        # PEP8: Keyword arguments lowercase
+        dinas = models.Dinas(nama=payload.nama)
+        db.add(dinas)
         db.commit()
-        db.refresh(d)
-        return d
+        db.refresh(dinas)
+        return dinas
 
     @staticmethod
     def delete(db: Session, dinas_id: int) -> None:
-        d = db.query(models.Dinas).filter(models.Dinas.ID == dinas_id).first()
-        if not d:
+        dinas = db.query(models.Dinas).filter(models.Dinas.id == dinas_id).first()
+        if not dinas:
             raise HTTPException(status_code=404, detail="Dinas tidak ditemukan")
-        db.delete(d)
+        db.delete(dinas)
         db.commit()

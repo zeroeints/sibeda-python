@@ -1,261 +1,273 @@
 from __future__ import annotations
 from typing import List, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
+from sqlalchemy import func
 import model.models as models
-from model.models import Vehicle as VehicleModel
-from schemas.schemas import VehicleCreate
+from schemas.schemas import VehicleCreate, VehicleUpdate
 
 class VehicleService:
     @staticmethod
-    def list(db: Session) -> List[VehicleModel]:
-        return db.query(VehicleModel).all()
+    def _get_base_query(db: Session):
+        return db.query(models.Vehicle).options(
+            joinedload(models.Vehicle.vehicle_type),
+            joinedload(models.Vehicle.dinas)
+        )
 
     @staticmethod
-    def create(db: Session, payload: VehicleCreate) -> VehicleModel:
-        # Ensure vehicle type exists
-        if not db.query(models.VehicleType).filter(models.VehicleType.ID == payload.VehicleTypeID).first():
-            raise HTTPException(status_code=400, detail="VehicleTypeID tidak ditemukan")
-        # Unique plat
-        if db.query(VehicleModel).filter(VehicleModel.Plat == payload.Plat).first():
-            raise HTTPException(status_code=400, detail="Plat sudah terdaftar")
-        data: Dict[str, Any] = {
-            "Nama": payload.Nama,
-            "Plat": payload.Plat,
-            "VehicleTypeID": payload.VehicleTypeID,
-            "KapasitasMesin": payload.KapasitasMesin,
-            "Odometer": payload.Odometer,
-            "JenisBensin": payload.JenisBensin,
-            "Merek": payload.Merek,
-            "FotoFisik": payload.FotoFisik,
+    def list(db: Session, limit: int = 10, offset: int = 0) -> Dict[str, Any]:
+        q = VehicleService._get_base_query(db)
+        total_records = q.count()
+        data = q.offset(offset).limit(limit).all()
+        has_more = (offset + len(data)) < total_records
+        
+        stat_dict = {"total_data": total_records}
+        stats_result = db.query(models.Vehicle.status, func.count(models.Vehicle.id)).group_by(models.Vehicle.status).all()
+        
+        for s in models.VehicleStatusEnum:
+            stat_dict[f"total_{s.value.lower()}"] = 0
+            
+        for status_enum, count in stats_result:
+            key = f"total_{status_enum.value.lower()}"
+            stat_dict[key] = count
+            
+        return {
+            "list": data,
+            "limit": limit,
+            "offset": offset,
+            "has_more": has_more,
+            "month": None, 
+            "year": None,
+            "stat": stat_dict
         }
-        if payload.Status:
-            data["Status"] = payload.Status.value
-        v = models.Vehicle(**data)
+
+    @staticmethod
+    def create(db: Session, payload: VehicleCreate) -> models.Vehicle:
+        if not db.query(models.VehicleType).filter(models.VehicleType.id == payload.vehicle_type_id).first():
+            raise HTTPException(400, "VehicleTypeID tidak ditemukan")
+        
+        if db.query(models.Vehicle).filter(models.Vehicle.plat == payload.plat).first():
+            raise HTTPException(400, "Plat sudah terdaftar")
+        
+        if payload.dinas_id and not db.query(models.Dinas).filter(models.Dinas.id == payload.dinas_id).first():
+             raise HTTPException(400, "DinasID tidak ditemukan")
+
+        # Map snake_case schema to snake_case model
+        v = models.Vehicle(
+            nama=payload.nama,
+            plat=payload.plat,
+            vehicle_type_id=payload.vehicle_type_id,
+            dinas_id=payload.dinas_id,
+            kapasitas_mesin=payload.kapasitas_mesin,
+            odometer=payload.odometer,
+            jenis_bensin=payload.jenis_bensin,
+            merek=payload.merek,
+            foto_fisik=payload.foto_fisik,
+            asset_icon_name=payload.asset_icon_name,
+            asset_icon_color=payload.asset_icon_color,
+            tipe_transmisi=payload.tipe_transmisi,
+            total_fuel_bar=payload.total_fuel_bar,
+            current_fuel_bar=payload.current_fuel_bar,
+            status=payload.status.value if payload.status else models.VehicleStatusEnum.active.value
+        )
+        
         db.add(v)
         db.commit()
-        db.refresh(v)
-        return v
+        return VehicleService._get_base_query(db).filter(models.Vehicle.id == v.id).first() # type: ignore
 
     @staticmethod
-    def update(db: Session, vehicle_id: int, payload: VehicleCreate) -> VehicleModel:
-        v = db.query(VehicleModel).filter(VehicleModel.ID == vehicle_id).first()
-        if not v:
-            raise HTTPException(status_code=404, detail="Vehicle tidak ditemukan")
-        if payload.Plat != v.Plat and db.query(VehicleModel).filter(VehicleModel.Plat == payload.Plat).first():
-            raise HTTPException(status_code=400, detail="Plat sudah terdaftar")
-        # ensure vehicle type still valid
-        if not db.query(models.VehicleType).filter(models.VehicleType.ID == payload.VehicleTypeID).first():
-            raise HTTPException(status_code=400, detail="VehicleTypeID tidak ditemukan")
-        update_map: Dict[str, Any] = {
-            "Nama": payload.Nama,
-            "Plat": payload.Plat,
-            "VehicleTypeID": payload.VehicleTypeID,
-            "KapasitasMesin": payload.KapasitasMesin,
-            "Odometer": payload.Odometer,
-            "JenisBensin": payload.JenisBensin,
-            "Merek": payload.Merek,
-            "FotoFisik": payload.FotoFisik,
-        }
-        if payload.Status:
-            update_map["Status"] = payload.Status.value
-        for field, value in update_map.items():
-            setattr(v, field, value)
+    def update(db: Session, vehicle_id: int, payload: VehicleCreate | VehicleUpdate) -> models.Vehicle:
+        v = db.query(models.Vehicle).filter(models.Vehicle.id == vehicle_id).first()
+        if not v: raise HTTPException(404, "Vehicle not found")
+        
+        update_data = payload.model_dump(exclude_unset=True)
+        
+        for key, val in update_data.items():
+            if key == "status" and val:
+                setattr(v, key, val.value)
+            elif hasattr(v, key):
+                setattr(v, key, val)
+        
         db.commit()
-        db.refresh(v)
-        return v
+        return VehicleService._get_base_query(db).filter(models.Vehicle.id == v.id).first() # type: ignore
 
     @staticmethod
     def delete(db: Session, vehicle_id: int) -> None:
-        v = db.query(VehicleModel).filter(VehicleModel.ID == vehicle_id).first()
-        if not v:
-            raise HTTPException(status_code=404, detail="Vehicle tidak ditemukan")
+        v = db.query(models.Vehicle).get(vehicle_id)
+        if not v: raise HTTPException(404, "Not found")
         db.delete(v)
         db.commit()
     
     @staticmethod
     def get_my_vehicles(db: Session, user_id: int) -> List[Dict[str, Any]]:
-        """
-        Mendapatkan semua kendaraan yang pernah digunakan oleh user
-        (melalui submission atau report) dengan detail lengkap
-        """
-        from sqlalchemy import func as sql_func, distinct
-        
-        # Get all vehicle IDs from submissions (as creator or receiver)
-        submission_vehicles = db.query(distinct(models.Submission.VehicleID)).filter(
-            (models.Submission.CreatorID == user_id) | (models.Submission.ReceiverID == user_id)
+        vehicles = db.query(models.Vehicle).join(
+            models.user_vehicle_association,
+            models.user_vehicle_association.c.vehicle_id == models.Vehicle.id
+        ).filter(
+            models.user_vehicle_association.c.user_id == user_id
+        ).options(
+            joinedload(models.Vehicle.vehicle_type),
+            joinedload(models.Vehicle.dinas)
         ).all()
-        
-        # Get all vehicle IDs from reports
-        report_vehicles = db.query(distinct(models.Report.VehicleID)).filter(
-            models.Report.UserID == user_id
-        ).all()
-        
-        # Combine vehicle IDs
-        vehicle_ids: set[int] = set()
-        for (vid,) in submission_vehicles:
-            vehicle_ids.add(vid)
-        for (vid,) in report_vehicles:
-            vehicle_ids.add(vid)
-        
-        if not vehicle_ids:
-            return []
-        
-        # Get vehicle details
-        vehicles = db.query(VehicleModel).filter(VehicleModel.ID.in_(vehicle_ids)).all()
-        
-        result: List[Dict[str, Any]] = []
-        for vehicle in vehicles:
-            # Get vehicle type name
-            vehicle_type = db.query(models.VehicleType).filter(
-                models.VehicleType.ID == vehicle.VehicleTypeID
-            ).first()
-            
-            # Count submissions using this vehicle
-            submission_count = db.query(sql_func.count(models.Submission.ID)).filter(
-                models.Submission.VehicleID == vehicle.ID,
-                (models.Submission.CreatorID == user_id) | (models.Submission.ReceiverID == user_id)
+
+        result = []
+        for v in vehicles:
+            submission_count = db.query(func.count(models.Submission.id)).filter(
+                (models.Submission.creator_id == user_id) | (models.Submission.receiver_id == user_id)
             ).scalar() or 0
             
-            # Count reports using this vehicle
-            report_count = db.query(sql_func.count(models.Report.ID)).filter(
-                models.Report.VehicleID == vehicle.ID,
-                models.Report.UserID == user_id
+            report_count = db.query(func.count(models.Report.id)).filter(
+                models.Report.vehicle_id == v.id, models.Report.user_id == user_id
             ).scalar() or 0
             
-            # Get latest report for this vehicle by this user
             latest_report = db.query(models.Report).filter(
-                models.Report.VehicleID == vehicle.ID,
-                models.Report.UserID == user_id
-            ).order_by(models.Report.Timestamp.desc()).first()
+                models.Report.vehicle_id == v.id, models.Report.user_id == user_id
+            ).order_by(models.Report.timestamp.desc()).first()
             
-            # Calculate total fuel (liters) from reports
-            total_fuel_liters = db.query(
-                sql_func.sum(models.Report.AmountLiter)
-            ).filter(
-                models.Report.VehicleID == vehicle.ID,
-                models.Report.UserID == user_id
+            total_fuel = db.query(func.sum(models.Report.amount_liter)).filter(
+                models.Report.vehicle_id == v.id, models.Report.user_id == user_id
             ).scalar() or 0
             
-            # Calculate total rupiah spent from reports
-            total_rupiah = db.query(
-                sql_func.sum(models.Report.AmountRupiah)
-            ).filter(
-                models.Report.VehicleID == vehicle.ID,
-                models.Report.UserID == user_id
+            total_rupiah = db.query(func.sum(models.Report.amount_rupiah)).filter(
+                models.Report.vehicle_id == v.id, models.Report.user_id == user_id
             ).scalar() or 0
             
-            vehicle_detail: Dict[str, Any] = {
-                "ID": vehicle.ID,
-                "Nama": vehicle.Nama,
-                "Plat": vehicle.Plat,
-                "Merek": vehicle.Merek,
-                "KapasitasMesin": vehicle.KapasitasMesin,
-                "JenisBensin": vehicle.JenisBensin,
-                "Odometer": vehicle.Odometer,
-                "Status": vehicle.Status.value,
-                "FotoFisik": vehicle.FotoFisik,
-                "VehicleTypeID": vehicle.VehicleTypeID,
-                "VehicleTypeName": vehicle_type.Nama if vehicle_type else None,
-                # User usage statistics
-                "TotalSubmissions": submission_count,
-                "TotalReports": report_count,
-                "TotalFuelLiters": float(total_fuel_liters),  # type: ignore
-                "TotalRupiahSpent": float(total_rupiah),  # type: ignore
-                # Latest refuel info
-                "LastRefuelDate": latest_report.Timestamp.isoformat() if latest_report else None,
-                "LastRefuelLiters": float(latest_report.AmountLiter) if latest_report else None,  # type: ignore
-                "LastRefuelRupiah": float(latest_report.AmountRupiah) if latest_report else None,  # type: ignore
-                "LastOdometer": latest_report.Odometer if latest_report else None,
+            vehicle_detail = {
+                "id": v.id, 
+                "nama": v.nama, 
+                "plat": v.plat, 
+                "merek": v.merek, 
+                "kapasitas_mesin": v.kapasitas_mesin,
+                "jenis_bensin": v.jenis_bensin, 
+                "odometer": v.odometer, 
+                "status": v.status, 
+                "foto_fisik": v.foto_fisik, 
+                "asset_icon_name": v.asset_icon_name, 
+                "asset_icon_color": v.asset_icon_color,
+                "tipe_transmisi": v.tipe_transmisi, 
+                "total_fuel_bar": v.total_fuel_bar, 
+                "current_fuel_bar": v.current_fuel_bar,
+                "vehicle_type": v.vehicle_type,
+                "dinas": v.dinas,
+                "dinas_id": v.dinas_id,
+                "total_submissions": submission_count, 
+                "total_reports": report_count,
+                "total_fuel_liters": float(total_fuel), 
+                "total_rupiah_spent": float(total_rupiah),
+                "last_refuel_date": latest_report.timestamp if latest_report else None,
             }
             result.append(vehicle_detail)
         
         return result
-    
+
     @staticmethod
     def get_vehicle_detail(db: Session, vehicle_id: int, user_id: int) -> Dict[str, Any]:
-        """
-        Mendapatkan detail lengkap sebuah kendaraan termasuk riwayat penggunaan oleh user
-        """
-        from sqlalchemy import func as sql_func
+        vehicle = db.query(models.Vehicle).options(
+            joinedload(models.Vehicle.vehicle_type),
+            joinedload(models.Vehicle.dinas)
+        ).filter(models.Vehicle.id == vehicle_id).first()
         
-        # Get vehicle
-        vehicle = db.query(VehicleModel).filter(VehicleModel.ID == vehicle_id).first()
-        if not vehicle:
-            raise HTTPException(status_code=404, detail="Kendaraan tidak ditemukan")
+        if not vehicle: raise HTTPException(404, "Kendaraan tidak ditemukan")
         
-        # Get vehicle type
-        vehicle_type = db.query(models.VehicleType).filter(
-            models.VehicleType.ID == vehicle.VehicleTypeID
-        ).first()
-        
-        # Get all reports for this vehicle by this user
         reports = db.query(models.Report).filter(
-            models.Report.VehicleID == vehicle_id,
-            models.Report.UserID == user_id
-        ).order_by(models.Report.Timestamp.desc()).limit(10).all()
+            models.Report.vehicle_id == vehicle_id,
+            models.Report.user_id == user_id
+        ).order_by(models.Report.timestamp.desc()).limit(10).all()
         
-        # Count total submissions and reports
-        submission_count = db.query(sql_func.count(models.Submission.ID)).filter(
-            models.Submission.VehicleID == vehicle_id,
-            (models.Submission.CreatorID == user_id) | (models.Submission.ReceiverID == user_id)
+        submission_count = db.query(func.count(models.Submission.id)).filter(
+            (models.Submission.creator_id == user_id) | (models.Submission.receiver_id == user_id)
         ).scalar() or 0
+        report_count = db.query(func.count(models.Report.id)).filter(models.Report.vehicle_id == vehicle_id, models.Report.user_id == user_id).scalar() or 0
+        total_fuel = db.query(func.sum(models.Report.amount_liter)).filter(models.Report.vehicle_id == vehicle_id, models.Report.user_id == user_id).scalar() or 0
+        total_rupiah = db.query(func.sum(models.Report.amount_rupiah)).filter(models.Report.vehicle_id == vehicle_id, models.Report.user_id == user_id).scalar() or 0
         
-        report_count = db.query(sql_func.count(models.Report.ID)).filter(
-            models.Report.VehicleID == vehicle_id,
-            models.Report.UserID == user_id
-        ).scalar() or 0
+        report_history = []
+        for r in reports:
+            report_history.append({
+                "id": r.id, 
+                "kode_unik": r.kode_unik, 
+                "amount_rupiah": float(r.amount_rupiah), 
+                "amount_liter": float(r.amount_liter),
+                "timestamp": r.timestamp, 
+                "odometer": r.odometer
+            })
         
-        # Calculate totals
-        total_fuel_liters = db.query(
-            sql_func.sum(models.Report.AmountLiter)
-        ).filter(
-            models.Report.VehicleID == vehicle_id,
-            models.Report.UserID == user_id
-        ).scalar() or 0
-        
-        total_rupiah = db.query(
-            sql_func.sum(models.Report.AmountRupiah)
-        ).filter(
-            models.Report.VehicleID == vehicle_id,
-            models.Report.UserID == user_id
-        ).scalar() or 0
-        
-        # Format report history
-        report_history: List[Dict[str, Any]] = []
-        for report in reports:
-            report_data: Dict[str, Any] = {
-                "ID": report.ID,
-                "KodeUnik": report.KodeUnik,
-                "AmountRupiah": float(report.AmountRupiah),  # type: ignore
-                "AmountLiter": float(report.AmountLiter),  # type: ignore
-                "Description": report.Description,
-                "Timestamp": report.Timestamp.isoformat(),
-                "Odometer": report.Odometer,
-                "Latitude": float(report.Latitude) if report.Latitude else None,  # type: ignore
-                "Longitude": float(report.Longitude) if report.Longitude else None,  # type: ignore
-            }
-            report_history.append(report_data)
-        
-        vehicle_detail: Dict[str, Any] = {
-            "ID": vehicle.ID,
-            "Nama": vehicle.Nama,
-            "Plat": vehicle.Plat,
-            "Merek": vehicle.Merek,
-            "KapasitasMesin": vehicle.KapasitasMesin,
-            "JenisBensin": vehicle.JenisBensin,
-            "Odometer": vehicle.Odometer,
-            "Status": vehicle.Status.value,
-            "FotoFisik": vehicle.FotoFisik,
-            "VehicleTypeID": vehicle.VehicleTypeID,
-            "VehicleTypeName": vehicle_type.Nama if vehicle_type else None,
-            # Statistics
-            "TotalSubmissions": submission_count,
-            "TotalReports": report_count,
-            "TotalFuelLiters": float(total_fuel_liters),  # type: ignore
-            "TotalRupiahSpent": float(total_rupiah),  # type: ignore
-            # Recent refuel history (last 10)
-            "RecentRefuelHistory": report_history,
+        return {
+            "id": vehicle.id, 
+            "nama": vehicle.nama, 
+            "plat": vehicle.plat, 
+            "merek": vehicle.merek,
+            "kapasitas_mesin": vehicle.kapasitas_mesin, 
+            "jenis_bensin": vehicle.jenis_bensin, 
+            "odometer": vehicle.odometer, 
+            "status": vehicle.status, 
+            "foto_fisik": vehicle.foto_fisik, 
+            "asset_icon_name": vehicle.asset_icon_name, 
+            "asset_icon_color": vehicle.asset_icon_color,
+            "tipe_transmisi": vehicle.tipe_transmisi, 
+            "total_fuel_bar": vehicle.total_fuel_bar, 
+            "current_fuel_bar": vehicle.current_fuel_bar,
+            "vehicle_type": vehicle.vehicle_type,
+            "dinas": vehicle.dinas,
+            "dinas_id": vehicle.dinas_id,
+            "total_submissions": submission_count,
+            "total_reports": report_count,
+            "total_fuel_liters": float(total_fuel),
+            "total_rupiah_spent": float(total_rupiah),
+            "recent_refuel_history": report_history,
         }
+
+    @staticmethod
+    def get_by_dinas(db: Session, dinas_id: int, limit: int = 10, offset: int = 0) -> Dict[str, Any]:
+        q = VehicleService._get_base_query(db).filter(models.Vehicle.dinas_id == dinas_id)
         
-        return vehicle_detail
+        total = q.count()
+        data = q.offset(offset).limit(limit).all()
+        has_more = (offset + len(data)) < total
+        
+        return {
+            "list": data,
+            "limit": limit,
+            "offset": offset,
+            "has_more": has_more,
+            "stat": {"total_data": total}
+        }
+    
+    @staticmethod
+    def get_by_user_id(db: Session, user_id: int) -> List[models.Vehicle]:
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not user:
+            raise HTTPException(404, "User tidak ditemukan")
+
+        vehicles = db.query(models.Vehicle).join(
+            models.user_vehicle_association,
+            models.user_vehicle_association.c.vehicle_id == models.Vehicle.id
+        ).filter(
+            models.user_vehicle_association.c.user_id == user_id
+        ).options(
+            joinedload(models.Vehicle.vehicle_type),
+            joinedload(models.Vehicle.dinas)
+        ).all()
+        
+        return vehicles
+
+    @staticmethod
+    def assign_user(db: Session, vehicle_id: int, user_id: int) -> None:
+        vehicle = db.query(models.Vehicle).get(vehicle_id)
+        user = db.query(models.User).get(user_id)
+        
+        if not vehicle or not user:
+            raise HTTPException(status_code=404, detail="Data tidak ditemukan")
+            
+        if vehicle not in user.vehicles:
+            user.vehicles.append(vehicle)
+            db.commit()
+
+    @staticmethod
+    def unassign_user(db: Session, vehicle_id: int, user_id: int) -> None:
+        user = db.query(models.User).get(user_id)
+        vehicle = db.query(models.Vehicle).get(vehicle_id)
+
+        if user and vehicle and vehicle in user.vehicles:
+            user.vehicles.remove(vehicle)
+            db.commit()

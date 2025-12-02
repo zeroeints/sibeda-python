@@ -1,165 +1,232 @@
-# pyright: reportGeneralTypeIssues=false, reportUnknownMemberType=false
-# type: ignore
-from fastapi import APIRouter, Depends, Query
+from __future__ import annotations
+
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+
 import controller.auth as auth
 import schemas.schemas as schemas
-from database.database import SessionLocal
+from config import get_settings
+from database.database import get_db
+from i18n.messages import get_message
 from model.models import User as UserModel
 from services.user_service import UserService
-from config import get_settings
-from i18n.messages import get_message
 
-router = APIRouter(prefix="/users", tags=["Users"]) 
+router = APIRouter(prefix="/users", tags=["Users"])
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
-@router.post("/", response_model=schemas.SuccessResponse[schemas.UserResponse])
-def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)) -> schemas.SuccessResponse[schemas.UserResponse]:
+@router.post(
+    "",
+    response_model=schemas.SuccessResponse[schemas.UserResponse],
+    summary="Register New User",
+    description="Mendaftarkan pengguna baru.",
+)
+def register_user(
+    user: schemas.UserCreate, db: Session = Depends(get_db)
+) -> schemas.SuccessResponse[schemas.UserResponse]:
     settings = get_settings()
     created = UserService.create(db, user)
     msg = get_message("user_create_success", None)
-    # Jangan expose OTP di production
     if settings.debug and hasattr(created, "_registration_otp"):
         msg = f"{msg} | OTP={getattr(created, '_registration_otp')}"
     return schemas.SuccessResponse[schemas.UserResponse](data=created, message=msg)
 
-@router.post("/register", response_model=schemas.SuccessResponse[schemas.UserResponse])
-def register_user_alias(user: schemas.UserCreate, db: Session = Depends(get_db)) -> schemas.SuccessResponse[schemas.UserResponse]:
-    return register_user(user, db)  # reuse logic
+
+@router.post(
+    "/register",
+    response_model=schemas.SuccessResponse[schemas.UserResponse],
+    summary="Register Alias",
+)
+def register_user_alias(
+    user: schemas.UserCreate, db: Session = Depends(get_db)
+) -> schemas.SuccessResponse[schemas.UserResponse]:
+    return register_user(user, db)
 
 
-@router.get("/", response_model=schemas.SuccessListResponse[schemas.UserResponse])
-def read_users(skip: int = 0, limit: int = 10, db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.UserResponse]:
-    users = UserService.list(db, skip=skip, limit=limit)
-    return schemas.SuccessListResponse[schemas.UserResponse](data=users, message=get_message("create_success", None))
-
-@router.get("/{user_id}", response_model=schemas.SuccessResponse[schemas.UserResponse])
-def get_user(user_id: int, db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.UserResponse]:
-    """Get user by ID"""
-    user = UserService.get_by_id(db, user_id)
-    if not user:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="User tidak ditemukan")
-    return schemas.SuccessResponse[schemas.UserResponse](data=user, message="User berhasil ditemukan")
-
-@router.put("/{user_id}", response_model=schemas.SuccessResponse[schemas.UserResponse])
-def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.UserResponse]:
-    """Update user by ID. Hanya field yang diisi yang akan diupdate."""
-    updated_user = UserService.update(db, user_id, user_update)
-    return schemas.SuccessResponse[schemas.UserResponse](data=updated_user, message=get_message("update_success", None))
-
-@router.patch("/{user_id}", response_model=schemas.SuccessResponse[schemas.UserResponse])
-def patch_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessResponse[schemas.UserResponse]:
-    """Alias untuk update user (PATCH method)"""
-    return update_user(user_id, user_update, db, _current_user)
-
-@router.get("/stats/count-by-dinas", response_model=schemas.SuccessListResponse[schemas.UserCountByDinas])
-def get_user_count_by_dinas(db: Session = Depends(get_db), _current_user: UserModel = Depends(auth.get_current_user)) -> schemas.SuccessListResponse[schemas.UserCountByDinas]:
-    """
-    Mendapatkan total pengguna per dinas.
+@router.get(
+    "",
+    response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.UserResponse]],
+    summary="List Users (Paged)",
+)
+def read_users(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=1000),
+    dinas_id: int | None = Query(None, description="Filter by Dinas ID"),
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user),
+) -> schemas.SuccessResponse[schemas.PagedListData[schemas.UserResponse]]:
     
-    Returns list berisi:
-    - dinas_id: ID dinas (null jika user tidak punya dinas)
-    - dinas_nama: Nama dinas atau "Tidak Ada Dinas"
-    - total_users: Jumlah user di dinas tersebut
-    
-    Diurutkan dari dinas dengan user terbanyak.
-    """
-    user_counts = UserService.get_user_count_by_dinas(db)
-    return schemas.SuccessListResponse[schemas.UserCountByDinas](
-        data=user_counts, 
-        message="Berhasil mendapatkan total pengguna per dinas"
+    result = UserService.list(db, skip=skip, limit=limit, dinas_id=dinas_id)
+    return schemas.SuccessResponse[schemas.PagedListData[schemas.UserResponse]](
+        data=result, message=get_message("create_success", None)
     )
 
 
-@router.get("/balance/{user_id}", response_model=schemas.SuccessResponse[schemas.UserBalanceResponse])
+@router.get(
+    "/{user_id}",
+    response_model=schemas.SuccessResponse[schemas.UserDetailResponse],
+    summary="Get User Detail Complete",
+)
+def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user),
+) -> schemas.SuccessResponse[schemas.UserDetailResponse]:
+    user_detail = UserService.get_user_detail_complete(db, user_id)
+    if not user_detail:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    return schemas.SuccessResponse[schemas.UserDetailResponse](
+        data=user_detail, message="User berhasil ditemukan"
+    )
+
+
+@router.put(
+    "/{user_id}",
+    response_model=schemas.SuccessResponse[schemas.UserResponse],
+    summary="Update User",
+)
+def update_user(
+    user_id: int,
+    user_update: schemas.UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user),
+) -> schemas.SuccessResponse[schemas.UserResponse]:
+    updated_user = UserService.update(db, user_id, user_update)
+    return schemas.SuccessResponse[schemas.UserResponse](
+        data=updated_user, message=get_message("update_success", None)
+    )
+
+
+@router.patch(
+    "/{user_id}",
+    response_model=schemas.SuccessResponse[schemas.UserResponse],
+    summary="Patch User",
+)
+def patch_user(
+    user_id: int,
+    user_update: schemas.UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user),
+) -> schemas.SuccessResponse[schemas.UserResponse]:
+    return update_user(user_id, user_update, db, current_user)
+
+
+@router.get(
+    "/stats/count-by-dinas",
+    response_model=schemas.SuccessResponse[schemas.UserCountByDinas],
+    summary="Count Users per Dinas",
+)
+def get_user_count_by_dinas(
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user),
+) -> schemas.SuccessResponse[schemas.UserCountByDinas]:
+    user_counts = UserService.get_user_count_by_dinas(db)
+    return schemas.SuccessResponse[schemas.UserCountByDinas](
+        data=user_counts, message="Berhasil mendapatkan total pengguna per dinas"
+    )
+
+
+@router.get(
+    "/balance/{user_id}",
+    response_model=schemas.SuccessResponse[schemas.UserBalanceResponse],
+    summary="Get User Balance",
+)
 def get_user_balance(
     user_id: int,
     db: Session = Depends(get_db),
-    _current_user: UserModel = Depends(auth.get_current_user)
+    current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.UserBalanceResponse]:
-    """
-    Mendapatkan saldo wallet user beserta informasi user
-    
-    - **user_id**: ID user yang ingin dicek saldonya
-    
-    Returns:
-    - User info (NIP, Nama, Email, Role, Dinas)
-    - Wallet info (ID, Saldo, Wallet Type)
-    """
     balance_info = UserService.get_user_balance(db, user_id)
     return schemas.SuccessResponse[schemas.UserBalanceResponse](
-        data=balance_info,  # type: ignore
-        message="Berhasil mendapatkan saldo user"
+        data=balance_info, message="Berhasil mendapatkan saldo user"
     )
 
 
-@router.get("/detailed/search", response_model=schemas.PaginatedResponse[schemas.UserDetailResponse])
+@router.get(
+    "/detailed/search",
+    response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.UserDetailResponse]],
+    summary="Search Users Detailed (Paged)",
+)
 def search_users_detailed(
-    search: str | None = Query(None, description="Cari berdasarkan NIP, Nama, atau Email"),
-    role: str | None = Query(None, description="Filter berdasarkan role: admin, kepala_dinas, pic"),
-    dinas_id: int | None = Query(None, description="Filter berdasarkan ID dinas"),
-    is_verified: bool | None = Query(None, description="Filter berdasarkan status verifikasi"),
-    limit: int = Query(100, ge=1, le=1000, description="Limit jumlah data (default 100, max 1000)"),
-    offset: int = Query(0, ge=0, description="Offset untuk pagination"),
+    search: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+    dinas_id: Optional[int] = Query(None),
+    is_verified: Optional[bool] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    _current_user: UserModel = Depends(auth.get_current_user)
-) -> schemas.PaginatedResponse[schemas.UserDetailResponse]:
-    """
-    Mencari dan mendapatkan detail lengkap pengguna dengan wallet dan dinas
+    current_user: UserModel = Depends(auth.get_current_user),
+) -> schemas.SuccessResponse[schemas.PagedListData[schemas.UserDetailResponse]]:
     
-    - **search**: Cari berdasarkan NIP, Nama Lengkap, atau Email (case-insensitive)
-    - **role**: Filter berdasarkan role (admin, kepala_dinas, pic)
-    - **dinas_id**: Filter berdasarkan ID dinas
-    - **is_verified**: Filter berdasarkan status verifikasi (true/false)
-    - **limit**: Batasi jumlah data (default 100)
-    - **offset**: Skip sejumlah data untuk pagination
-    
-    Returns:
-    - Detail user termasuk:
-      - Data user lengkap (NIP, Nama, Email, Role, dll)
-      - Wallet info (ID, Saldo, Type)
-      - Dinas info (ID, Nama)
-      - Total submission yang dibuat dan diterima
-    - Pagination info (total, has_more, dll)
-    """
-    # Get total count
-    total = UserService.count_users(
-        db,
-        search=search,
-        role=role,
-        dinas_id=dinas_id,
-        is_verified=is_verified
-    )
-    
-    # Get data
+    total = UserService.count_users(db, search, role, dinas_id, is_verified)
     data = UserService.search_users_detailed(
-        db,
-        search=search,
-        role=role,
-        dinas_id=dinas_id,
-        is_verified=is_verified,
-        limit=limit,
-        offset=offset
+        db, search, role, dinas_id, is_verified, None, limit, offset
     )
     
-    # Calculate pagination info
     has_more = (offset + len(data)) < total
     
-    return schemas.PaginatedResponse[schemas.UserDetailResponse](
-        data=data,  # type: ignore
-        message=f"Ditemukan {len(data)} dari {total} pengguna",
-        pagination={
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-            "returned": len(data),
-            "has_more": has_more
-        }
+    result = {
+        "list": data,
+        "limit": limit,
+        "offset": offset,
+        "has_more": has_more,
+        "stat": {"total_data": total},
+    }
+    
+    return schemas.SuccessResponse[schemas.PagedListData[schemas.UserDetailResponse]](
+        data=result, message=f"Ditemukan {len(data)} dari {total} pengguna"
+    )
+
+
+@router.get(
+    "/vehicle/{vehicle_id}",
+    response_model=schemas.SuccessResponse[List[schemas.UserResponse]],
+    summary="Get Users Assigned to Vehicle",
+)
+def get_users_by_vehicle_id(
+    vehicle_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user),
+):
+    users = UserService.get_by_vehicle_id(db, vehicle_id)
+    return schemas.SuccessResponse[List[schemas.UserResponse]](
+        data=users,
+        message=f"Ditemukan {len(users)} pemegang kendaraan {vehicle_id}",
+    )
+
+
+@router.post(
+    "/{user_id}/assign-vehicle",
+    response_model=schemas.SuccessResponse[schemas.Message],
+    summary="Assign Vehicle to User",
+)
+def assign_vehicle_to_user(
+    user_id: int,
+    payload: schemas.UserAssignmentRequest,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user),
+):
+    UserService.assign_vehicle(db, user_id, payload.vehicle_id) # snake_case schema
+    return schemas.SuccessResponse[schemas.Message](
+        data=schemas.Message(detail="Kendaraan berhasil di-assign ke user"),
+        message="Success",
+    )
+
+
+@router.post(
+    "/{user_id}/unassign-vehicle",
+    response_model=schemas.SuccessResponse[schemas.Message],
+    summary="Unassign Vehicle from User",
+)
+def unassign_vehicle_from_user(
+    user_id: int,
+    payload: schemas.UserAssignmentRequest,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user),
+):
+    UserService.unassign_vehicle(db, user_id, payload.vehicle_id) # snake_case schema
+    return schemas.SuccessResponse[schemas.Message](
+        data=schemas.Message(detail="Kendaraan berhasil di-unassign dari user"),
+        message="Success",
     )

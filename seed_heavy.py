@@ -1,233 +1,285 @@
 import random
 from faker import Faker
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine, select
-from datetime import datetime, timedelta
+from sqlalchemy import create_engine, select, text
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-import os
+import logging
 
-# Load environment variables
+# --- SETUP ---
 load_dotenv()
-
-# --- IMPORT MODEL (Sesuaikan dengan path project Anda) ---
-# Pastikan file ini berada di root folder project atau sesuaikan importnya
-from config import get_settings # Pastikan module ini ada
+from config import get_settings
 from model.models import (
     Base, User, RoleEnum, Dinas, WalletType, VehicleType, Wallet, 
     Vehicle, VehicleStatusEnum, Submission, SubmissionStatusEnum, 
-    PurposeEnum, SubmissionLog, Report
+    SubmissionLog, Report, ReportLog, ReportStatusEnum
 )
 
-# --- KONFIGURASI DATABASE ---
-# Menggunakan settings dari file config atau hardcode jika perlu
-try:
-    settings = get_settings()
-    DATABASE_URL = settings.database_url
-except:
-    # Fallback jika config tidak ditemukan (GANTI INI JIKA PERLU)
-    DATABASE_URL = "mysql+pymysql://root:@localhost/db_sibeda"
+# Logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
+logger = logging.getLogger(__name__)
 
-engine = create_engine(DATABASE_URL)
+# DB Config
+settings = get_settings()
+engine = create_engine(settings.database_url)
 fake = Faker('id_ID')
 
-# Hash password dummy
-DUMMY_PASSWORD_HASH = "$bcrypt-sha256$v=2,t=2b,r=12$DUMMYHASHFORPASSWORD123......................"
+# Hash Password (password123)
+PASSWORD_HASH = "$bcrypt-sha256$v=2,t=2b,r=12$aNMkUf1Xp0HMCDmku3XgM.$TR1hRdt9SZ66CdlnepazFEQcM.tkb4a" 
 
-def get_or_create_user(session, user_id, role, name, email, dinas_id, wallet_type_ids):
-    """Helper untuk memastikan User 1, 3, 4 ada"""
-    user = session.get(User, user_id)
-    if not user:
-        print(f"   Creating User ID {user_id} ({role.value})...")
-        user = User(
-            ID=user_id,
-            NIP=fake.unique.numerify(text='##################'),
-            Role=role,
-            NamaLengkap=name,
-            Email=email,
-            NoTelepon=fake.phone_number(),
-            Password=DUMMY_PASSWORD_HASH,
-            isVerified=True,
-            DinasID=dinas_id
-        )
-        session.add(user)
-        session.flush() # Flush untuk memastikan ID terpakai
+def get_status_vehicle(i):
+    return VehicleStatusEnum.Active if i % 2 == 0 else VehicleStatusEnum.Nonactive
 
-        # Buat Wallet
-        wallet = Wallet(
-            Saldo=random.choice([1000000, 5000000, 10000000]),
-            UserID=user.ID,
-            WalletTypeID=random.choice(wallet_type_ids)
-        )
-        session.add(wallet)
-    return user
-
-def seed_heavy_data():
+def seed_heavy_v2():
     with Session(engine) as session:
-        print("🚀 Memulai Massive Seeding...")
+        logger.info("🚀 Memulai Seeding Khusus UI Testing (50% Full / 50% Null)...")
 
-        # 1. Pastikan Reference Data Ada
-        print("... Cek Reference Data")
-        
-        # Dinas
-        dinas = session.get(Dinas, 1)
-        if not dinas:
-            dinas = Dinas(ID=1, Nama="Dinas Komunikasi dan Informatika")
-            session.add(dinas)
-            session.flush()
-        
-        dinas_pu = session.execute(select(Dinas).where(Dinas.Nama == "Dinas Pekerjaan Umum")).scalar()
-        if not dinas_pu:
-            dinas_pu = Dinas(Nama="Dinas Pekerjaan Umum")
-            session.add(dinas_pu)
-            session.flush()
+        # ==========================================
+        # 0. CLEANUP (Opsional: Hapus data lama agar ID reset/bersih)
+        # ==========================================
+        # logger.warning("Cleaning up old data...")
+        # session.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+        # session.execute(text("TRUNCATE TABLE ReportLog"))
+        # session.execute(text("TRUNCATE TABLE SubmissionLog"))
+        # session.execute(text("TRUNCATE TABLE Report"))
+        # session.execute(text("TRUNCATE TABLE Submission"))
+        # session.execute(text("TRUNCATE TABLE user_vehicle"))
+        # session.execute(text("TRUNCATE TABLE Vehicle"))
+        # session.execute(text("TRUNCATE TABLE Wallet"))
+        # session.execute(text("TRUNCATE TABLE User"))
+        # session.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+        # session.commit()
 
-        dinas_ids = [dinas.ID, dinas_pu.ID]
+        # ==========================================
+        # 1. REFERENCE DATA (Wajib Ada)
+        # ==========================================
+        logger.info("📦 Seeding Reference Data...")
+        
+        # 3 Dinas Utama
+        dinas_list = []
+        dinas_names = ["Dinas A (Testing)", "Dinas B (Testing)", "Dinas C (Testing)"]
+        for d_name in dinas_names:
+            d = session.execute(select(Dinas).where(Dinas.Nama == d_name)).scalar_one_or_none()
+            if not d:
+                d = Dinas(Nama=d_name)
+                session.add(d)
+                session.flush()
+            dinas_list.append(d)
 
         # Wallet & Vehicle Types
-        w_types = ["Cash", "E-Wallet", "Bank Transfer"]
-        for w in w_types:
-            if not session.execute(select(WalletType).where(WalletType.Nama == w)).scalar():
-                session.add(WalletType(Nama=w))
+        w_type = session.execute(select(WalletType).limit(1)).scalar_one_or_none()
+        if not w_type:
+            w_type = WalletType(Nama="Cash")
+            session.add(w_type)
+            session.flush()
         
-        v_types = ["Motor", "Mobil", "Truk"]
-        for v in v_types:
-            if not session.execute(select(VehicleType).where(VehicleType.Nama == v)).scalar():
-                session.add(VehicleType(Nama=v))
-        
-        session.commit()
+        v_type_mobil = session.execute(select(VehicleType).where(VehicleType.Nama == "Mobil Dinas")).scalar_one_or_none()
+        if not v_type_mobil:
+            v_type_mobil = VehicleType(Nama="Mobil Dinas")
+            session.add(v_type_mobil)
+            session.flush()
 
-        wt_ids = [w.ID for w in session.scalars(select(WalletType)).all()]
-        vt_ids = [v.ID for v in session.scalars(select(VehicleType)).all()]
-
-        # 2. Setup Core Users (ID 1, 3, 4)
-        print("... Setup Core Users (PIC:1, Kadis:3, Admin:4)")
+        # ==========================================
+        # 2. USERS (12 Total: 3 Admin, 3 Kadis, 6 PIC)
+        # ==========================================
+        logger.info("👥 Seeding 12 Users (Mix Null/Full Fields)...")
         
-        pic_user = get_or_create_user(session, 1, RoleEnum.pic, "Budi PIC", "pic@sibeda.com", dinas.ID, wt_ids)
-        kadis_user = get_or_create_user(session, 3, RoleEnum.kepala_dinas, "Pak Kadis", "kadis@sibeda.com", dinas.ID, wt_ids)
-        admin_user = get_or_create_user(session, 4, RoleEnum.admin, "Admin Sistem", "admin@sibeda.com", dinas.ID, wt_ids)
-        
-        session.commit()
+        users_created = []
 
-        # 3. Generate Vehicles (Lebih Banyak)
-        print("... Generating 30 Vehicles")
-        existing_plats = [v.Plat for v in session.scalars(select(Vehicle)).all()]
+        # -- A. 3 ADMINS --
+        for i in range(3):
+            is_full = (i % 2 == 0) # Genap = Full, Ganjil = Null
+            admin = User(
+                NIP=f"ADM{i+1:03d}" + fake.numerify("############"),
+                NamaLengkap=f"Admin {i+1} ({'Full' if is_full else 'Null'})",
+                Email=f"admin{i+1}@test.com",
+                Role=RoleEnum.admin,
+                Password=PASSWORD_HASH,
+                isVerified=True,
+                # Optional Fields Logic:
+                NoTelepon=fake.phone_number() if is_full else None,
+                DinasID=None # Admin biasanya global
+            )
+            session.add(admin)
+            users_created.append(admin)
+
+        # -- B. 3 KADIS (1 per Dinas) --
+        for i in range(3):
+            is_full = (i % 2 == 0)
+            kadis = User(
+                NIP=f"KDS{i+1:03d}" + fake.numerify("############"),
+                NamaLengkap=f"Kadis {i+1} ({'Full' if is_full else 'Null'})",
+                Email=f"kadis{i+1}@test.com",
+                Role=RoleEnum.kepala_dinas,
+                Password=PASSWORD_HASH,
+                isVerified=True,
+                # Optional Fields Logic:
+                NoTelepon=fake.phone_number() if is_full else None,
+                DinasID=dinas_list[i].ID # Assign ke Dinas A, B, C berurutan
+            )
+            session.add(kadis)
+            users_created.append(kadis)
+
+        # -- C. 6 PIC (2 per Dinas) --
+        for i in range(6):
+            is_full = (i % 2 == 0)
+            dinas_idx = i // 2 # 0,0, 1,1, 2,2 -> Dinas A, A, B, B, C, C
+            
+            pic = User(
+                NIP=f"PIC{i+1:03d}" + fake.numerify("############"),
+                NamaLengkap=f"PIC {i+1} Dinas {dinas_idx+1} ({'Full' if is_full else 'Null'})",
+                Email=f"pic{i+1}@test.com",
+                Role=RoleEnum.pic,
+                Password=PASSWORD_HASH,
+                isVerified=True,
+                # Optional Fields Logic:
+                NoTelepon=fake.phone_number() if is_full else None,
+                DinasID=dinas_list[dinas_idx].ID
+            )
+            session.add(pic)
+            users_created.append(pic)
+        
+        session.flush()
+
+        # Buat Wallet untuk semua user
+        for u in users_created:
+            w = Wallet(UserID=u.ID, WalletTypeID=w_type.ID, Saldo=5000000)
+            session.add(w)
+
+        # Pisahkan list untuk referensi nanti
+        list_pic = [u for u in users_created if u.Role == RoleEnum.pic]
+        list_kadis = [u for u in users_created if u.Role == RoleEnum.kepala_dinas]
+
+        # ==========================================
+        # 3. VEHICLES (20 Total)
+        # ==========================================
+        logger.info("🚗 Seeding 20 Vehicles (50% Full Specs, 50% Minimal Specs)...")
+        
         vehicles = []
-        
-        for _ in range(30):
-            plat = f"DK {fake.random_int(1000, 9999)} {fake.random_uppercase_letter()}{fake.random_uppercase_letter()}"
-            if plat in existing_plats: continue
-
+        for i in range(20):
+            is_full = (i % 2 == 0)
+            
             veh = Vehicle(
-                Nama=f"{random.choice(['Toyota', 'Honda', 'Mitsubishi', 'Isuzu'])} {fake.first_name()}",
-                Plat=plat,
-                KapasitasMesin=random.choice([110, 150, 1500, 2000, 2500]),
-                VehicleTypeID=random.choice(vt_ids),
-                Odometer=random.randint(5000, 200000),
-                Status=random.choice([VehicleStatusEnum.Active, VehicleStatusEnum.Active, VehicleStatusEnum.Nonactive]), # Lebih banyak active
-                JenisBensin=random.choice(["Pertalite", "Pertamax", "Solar"]),
-                Merek=random.choice(["Toyota", "Honda", "Yamaha", "Suzuki"]),
-                FotoFisik=f"https://source.unsplash.com/random/300x200/?car,motorcycle&sig={random.randint(1,1000)}"
+                Nama=f"Kendaraan {i+1} ({'Lengkap' if is_full else 'Min'})",
+                Plat=f"B {fake.random_int(1000,9999)} {fake.random_uppercase_letter()}{fake.random_uppercase_letter()}",
+                VehicleTypeID=v_type_mobil.ID,
+                Status=VehicleStatusEnum.Active if is_full else VehicleStatusEnum.Active, # Status wajib active/nonactive enum
+                
+                # --- OPTIONAL FIELDS (Null vs Full) ---
+                KapasitasMesin = 1500 if is_full else None,
+                JenisBensin    = "Pertamax" if is_full else None,
+                Merek          = "Toyota" if is_full else None,
+                FotoFisik      = "https://placehold.co/600x400/png" if is_full else None,
+                AssetIconName  = "AppAssets.ilustCar1" if is_full else None,
+                AssetIconColor = "AppColors.primary70" if is_full else None,
+                TipeTransmisi  = "Matic" if is_full else None,
+                TotalFuelBar   = 8 if is_full else 8, # Default DB biasanya not null default 8
+                CurrentFuelBar = 4 if is_full else 0,
+                DinasID        = dinas_list[i % 3].ID if is_full else None, # Separuh tidak punya dinas
+                Odometer       = 10000 if is_full else 0
             )
             session.add(veh)
             vehicles.append(veh)
         
-        session.commit()
-        # Reload vehicles with IDs
-        all_vehicles = session.scalars(select(Vehicle)).all()
+        session.flush()
 
-        # 4. Generate Transactions (Submissions & Reports)
-        print("... Generating 100+ Submissions and Reports")
+        # Assign vehicles to random PICs (hanya untuk data yang Full)
+        for i, veh in enumerate(vehicles):
+            if i % 2 == 0: # Full vehicle assigned to random PIC
+                owner = random.choice(list_pic)
+                if veh not in owner.vehicles:
+                    owner.vehicles.append(veh)
+
+        # ==========================================
+        # 4. SUBMISSIONS (20 Total)
+        # ==========================================
+        logger.info("📝 Seeding 20 Submissions (50% Detailed, 50% Simple)...")
         
-        # Skenario 1: Admin (4) Memberi Dana ke PIC (1)
-        # Skenario 2: PIC (1) Mengajukan ke Kadis (3) - (Opsional, tapi kita fokus ke Admin->PIC sesuai prompt)
-        
-        for _ in range(100):
-            # Tentukan tanggal transaksi (menyebar 3 bulan terakhir)
-            created_at = fake.date_time_between(start_date='-90d', end_date='now')
+        submission_refs = []
+
+        for i in range(20):
+            is_full = (i % 2 == 0)
             
-            # 70% Transaksi dari Admin ke PIC, 30% PIC ke Kadis
-            if random.random() > 0.3:
-                creator = admin_user
-                receiver = pic_user
-            else:
-                creator = pic_user
-                receiver = kadis_user
-
-            selected_vehicle = random.choice(all_vehicles)
-            status = random.choices(
-                [SubmissionStatusEnum.Accepted, SubmissionStatusEnum.Rejected, SubmissionStatusEnum.Pending],
-                weights=[60, 20, 20], # 60% Accepted
-                k=1
-            )[0]
-
-            total_cash = random.choice([100000, 150000, 200000, 300000, 500000])
-            kode_unik = fake.unique.bothify(text='SUB-####-????').upper()
-
-            # Create Submission
-            submission = Submission(
-                KodeUnik=kode_unik,
-                Status=status,
+            creator = list_pic[i % len(list_pic)] # Rotate PIC
+            receiver = list_kadis[0] # Default receiver
+            
+            sub = Submission(
+                KodeUnik=f"SUB-{fake.unique.random_number(digits=8)}",
                 CreatorID=creator.ID,
                 ReceiverID=receiver.ID,
-                TotalCashAdvance=total_cash,
-                VehicleID=selected_vehicle.ID,
-                created_at=created_at
+                TotalCashAdvance=100000 * (i+1),
+                Status=SubmissionStatusEnum.Accepted if is_full else SubmissionStatusEnum.Pending,
+                created_at=datetime.now(),
+                
+                # --- OPTIONAL FIELDS ---
+                Description=f"Pengajuan perjalanan dinas lengkap ke-{i+1} dengan detail panjang." if is_full else None,
+                Date=datetime.now() if is_full else datetime.now(), # Date biasanya not null di UI logic, kita isi saja
+                DinasID=creator.DinasID if is_full else None # Kadang submission lintas dinas / error data
             )
-            session.add(submission)
+            session.add(sub)
             session.flush()
+            submission_refs.append(sub)
 
-            # Create Log (Initial)
+            # Log
             session.add(SubmissionLog(
-                SubmissionID=submission.ID,
-                Status=SubmissionStatusEnum.Pending,
-                Timestamp=created_at
+                SubmissionID=sub.ID,
+                Status=sub.Status,
+                UpdatedByUserID=creator.ID,
+                Notes="Auto generated log full." if is_full else None # Notes Optional
             ))
 
-            # Create Log (Final Decision)
-            if status != SubmissionStatusEnum.Pending:
-                decision_time = created_at + timedelta(hours=random.randint(1, 48))
-                session.add(SubmissionLog(
-                    SubmissionID=submission.ID,
-                    Status=status,
-                    Timestamp=decision_time
-                ))
+        # ==========================================
+        # 5. REPORTS (20 Total)
+        # ==========================================
+        logger.info("⛽ Seeding 20 Reports (50% Bukti Lengkap, 50% Bukti Kosong)...")
 
-                # 5. Generate Report (Hanya jika Submission Accepted & Creator/Receiver melibatkan PIC)
-                # Skenario: Jika Admin memberi dana ke PIC (Accepted), maka PIC membuat laporan penggunaan.
-                if status == SubmissionStatusEnum.Accepted and receiver.ID == 1:
-                    # 90% PIC membuat laporan jika sudah disetujui
-                    if random.random() > 0.1:
-                        report_time = decision_time + timedelta(days=random.randint(1, 5))
-                        
-                        # Hitung pemakaian bensin (Logis sedikit)
-                        harga_per_liter = 10000
-                        liter = total_cash / harga_per_liter
-                        
-                        # Tambah odometer
-                        new_odometer = selected_vehicle.Odometer + int(liter * 10) # Asumsi 1:10 km/l
-                        
-                        # Update kendaraan odometer (hanya simulasi di data report, tidak update master vehicle agar variatif)
-                        
-                        report = Report(
-                            KodeUnik=submission.KodeUnik,
-                            UserID=pic_user.ID, # PIC yang melaporkan
-                            VehicleID=selected_vehicle.ID,
-                            AmountRupiah=total_cash,
-                            AmountLiter=liter,
-                            Description=fake.sentence(nb_words=10),
-                            Timestamp=report_time,
-                            Latitude=fake.latitude(),
-                            Longitude=fake.longitude(),
-                            VehiclePhysicalPhotoPath="https://placehold.co/600x400?text=Fisik+Kendaraan",
-                            OdometerPhotoPath="https://placehold.co/600x400?text=Odometer",
-                            InvoicePhotoPath="https://placehold.co/600x400?text=Struk+SPBU",
-                            MyPertaminaPhotoPath="https://placehold.co/600x400?text=App+MyPertamina",
-                            Odometer=new_odometer
-                        )
-                        session.add(report)
+        for i in range(20):
+            is_full = (i % 2 == 0)
+            
+            # Ambil submission yang sesuai (atau random)
+            related_sub = submission_refs[i]
+            user = list_pic[i % len(list_pic)]
+            veh = vehicles[i % len(vehicles)]
+
+            rep = Report(
+                KodeUnik=related_sub.KodeUnik,
+                UserID=user.ID,
+                VehicleID=veh.ID,
+                AmountRupiah=50000,
+                AmountLiter=5.0,
+                Status=ReportStatusEnum.Accepted if is_full else ReportStatusEnum.Pending,
+                Timestamp=datetime.now(),
+                
+                # --- OPTIONAL FIELDS (UI Testing Critical) ---
+                Description = f"Isi bensin full tank di SPBU 34.1234. Bukti lengkap foto fisik dan struk." if is_full else None,
+                Latitude    = -6.2088 if is_full else None,
+                Longitude   = 106.8456 if is_full else None,
+                Odometer    = 15000 if is_full else None,
+                DinasID     = user.DinasID if is_full else None,
+                
+                # Photos (String URL)
+                VehiclePhysicalPhotoPath = "https://placehold.co/400x300?text=Fisik" if is_full else None,
+                OdometerPhotoPath        = "https://placehold.co/400x300?text=Odometer" if is_full else None,
+                InvoicePhotoPath         = "https://placehold.co/400x300?text=Struk" if is_full else None,
+                MyPertaminaPhotoPath     = "https://placehold.co/400x300?text=App" if is_full else None
+            )
+            session.add(rep)
+            session.flush()
+            
+            # Log
+            session.add(ReportLog(
+                ReportID=rep.ID,
+                Status=rep.Status,
+                UpdatedByUserID=user.ID,
+                Notes="Bukti valid dan lengkap." if is_full else None
+            ))
 
         session.commit()
-        print("✅ Selesai! 100 Data Transaksi + User + Kendaraan telah dibuat.")
+        logger.info("✅ SEEDING SELESAI! Data siap untuk testing Flutter.")
+        logger.info("   - User Index Genap (0,2..): Data Lengkap (Ada NoTelp, dll)")
+        logger.info("   - User Index Ganjil (1,3..): Data Minimal (Null NoTelp)")
+        logger.info("   - Vehicle/Report Genap: Ada Foto, Deskripsi, GPS")
+        logger.info("   - Vehicle/Report Ganjil: Foto Null, Deskripsi Null, GPS Null")
 
 if __name__ == "__main__":
-    seed_heavy_data()
+    seed_heavy_v2()
