@@ -1,5 +1,4 @@
 from __future__ import annotations
-from datetime import datetime
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
@@ -15,15 +14,20 @@ logger = logging.getLogger(__name__)
 class UserService:
     @staticmethod
     def create(db: Session, user_in: schemas.UserCreate) -> models.User:
-        # (Isi create tetap sama seperti sebelumnya, tidak ada perubahan logic)
-        nip = user_in.NIP.strip()
-        nama = user_in.NamaLengkap.strip()
-        email = user_in.Email.strip().lower()
-        no_telp = user_in.NoTelepon.strip() if user_in.NoTelepon else None
+        nip = user_in.nip.strip()
+        nama = user_in.nama_lengkap.strip()
+        email = user_in.email.strip().lower()
+        no_telp = user_in.no_telepon.strip() if user_in.no_telepon else None
+        
         user = models.User(
-            NIP=nip, Role=models.RoleEnum.pic, NamaLengkap=nama, Email=email,
-            NoTelepon=no_telp, Password=auth.get_password_hash(user_in.Password),
-            DinasID=None, isVerified=False,
+            nip=nip, 
+            role=models.RoleEnum.pic, 
+            nama_lengkap=nama, 
+            email=email,
+            no_telepon=no_telp, 
+            password=auth.get_password_hash(user_in.password),
+            dinas_id=None, 
+            is_verified=False,
         )
         db.add(user)
         try:
@@ -31,18 +35,20 @@ class UserService:
         except IntegrityError as e:
             db.rollback()
             msg = str(e.orig).lower() if getattr(e, 'orig', None) else ''
-            if 'duplicate' in msg or 'uq_user_nip' in msg: detail = "NIP atau Email sudah terdaftar"
-            else: detail = "Gagal membuat user"
+            if 'duplicate' in msg or 'uq_users_nip' in msg: 
+                detail = "NIP atau Email sudah terdaftar"
+            else: 
+                detail = "Gagal membuat user"
             raise HTTPException(status_code=400, detail=detail)
+        
         db.refresh(user)
         
-        # Trigger OTP logic (tetap sama)
         try:
             from utils.otp import create_account_verification_code 
             from utils.mailer import send_registration_otp
             otp_rec = create_account_verification_code(db, user)  
-            if otp_rec and otp_rec.KodeUnik:
-                send_registration_otp(str(user.Email), str(otp_rec.KodeUnik))
+            if otp_rec and otp_rec.kode_unik:
+                send_registration_otp(str(user.email), str(otp_rec.kode_unik))
         except Exception as e:
             logger.error(f"OTP Error: {e}")
             
@@ -50,25 +56,23 @@ class UserService:
 
     @staticmethod
     def list(db: Session, skip: int = 0, limit: int = 10, dinas_id: int | None = None) -> Dict[str, Any]:
-        """List users dengan eager loading Dinas dan filter optional dinas_id"""
         q = db.query(models.User).options(joinedload(models.User.dinas))
         
-        # [UPDATED] Filter by DinasID
         if dinas_id is not None:
-            q = q.filter(models.User.DinasID == dinas_id)
+            q = q.filter(models.User.dinas_id == dinas_id)
         
         total_records = q.count()
-        data = q.order_by(models.User.ID.desc()).offset(skip).limit(limit).all()
+        data = q.order_by(models.User.id.desc()).offset(skip).limit(limit).all()
         has_more = (skip + len(data)) < total_records
         
-        # Stats: Verified vs Not (Filtered by dinas if applied)
+        # Stats
         stat_dict = {"total_data": total_records}
+        stat_q = db.query(models.User.is_verified, func.count(models.User.id))
         
-        # Re-query for stats to respect filter
-        stat_q = db.query(models.User.isVerified, func.count(models.User.ID))
         if dinas_id is not None:
-            stat_q = stat_q.filter(models.User.DinasID == dinas_id)
-        stats_ver = stat_q.group_by(models.User.isVerified).all()
+            stat_q = stat_q.filter(models.User.dinas_id == dinas_id)
+            
+        stats_ver = stat_q.group_by(models.User.is_verified).all()
         
         stat_dict["total_verified"] = 0
         stat_dict["total_unverified"] = 0
@@ -86,66 +90,64 @@ class UserService:
     
     @staticmethod
     def get_by_id(db: Session, user_id: int) -> models.User | None:
-        """Get Single User dengan Relasi"""
         return db.query(models.User).options(
             joinedload(models.User.dinas)
-        ).filter(models.User.ID == user_id).first()
+        ).filter(models.User.id == user_id).first()
     
     @staticmethod
     def update(db: Session, user_id: int, user_update: schemas.UserUpdate) -> models.User:
-        # (Isi update tetap sama)
-        user = db.query(models.User).filter(models.User.ID == user_id).first()
-        if not user: raise HTTPException(404, "User tidak ditemukan")
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not user: 
+            raise HTTPException(404, "User tidak ditemukan")
+        
         update_data = user_update.model_dump(exclude_unset=True)
-        for field, value in update_data.items():
+        
+        # Mapping key schema -> attribute model (sekarang 1:1, kecuali password hash)
+        for key, value in update_data.items():
             if value is not None:
-                if field == "Password": value = auth.get_password_hash(value)
-                setattr(user, field, value)
+                if key == "password":
+                    value = auth.get_password_hash(value)
+                # Pastikan key ada di model User
+                if hasattr(user, key):
+                    setattr(user, key, value)
+
         try:
             db.commit()
             db.refresh(user)
         except IntegrityError:
             db.rollback()
             raise HTTPException(400, "Data konflik (NIP/Email sudah ada)")
-        return UserService.get_by_id(db, user.ID)
+            
+        return UserService.get_by_id(db, user.id) # type: ignore
 
     @staticmethod
     def get_user_count_by_dinas(db: Session) -> List[Dict[str, Any]]:
-     
         query = (
             db.query(
-                models.User.DinasID.label("dinas_id"),
-                models.Dinas.Nama.label("dinas_nama"),
-                func.count(models.User.ID).label("total_users")
+                models.User.dinas_id.label("dinas_id"),
+                models.Dinas.nama.label("dinas_nama"),
+                func.count(models.User.id).label("total_users")
             )
-            .outerjoin(models.Dinas, models.User.DinasID == models.Dinas.ID)
-            .group_by(models.User.DinasID, models.Dinas.Nama)
-            .order_by(func.count(models.User.ID).desc())  # Sort by total users descending
+            .outerjoin(models.Dinas, models.User.dinas_id == models.Dinas.id)
+            .group_by(models.User.dinas_id, models.Dinas.nama)
+            .order_by(func.count(models.User.id).desc())
         )
         
         results = query.all()
-        
-        user_counts: List[Dict[str, Any]] = []
-        for row in results:
-            count_data: Dict[str, Any] = {
+        return [
+            {
                 "dinas_id": row.dinas_id,
                 "dinas_nama": row.dinas_nama if row.dinas_nama else "Tidak Ada Dinas",
                 "total_users": row.total_users
-            }
-            user_counts.append(count_data)
-        
-        return user_counts
+            } 
+            for row in results
+        ]
 
     @staticmethod
     def get_user_detail_complete(db: Session, user_id: int) -> Dict[str, Any] | None:
-        """
-        Get detail lengkap satu user (untuk endpoint /{id}).
-        Menggunakan logic yang sama dengan search_detailed tapi untuk 1 ID.
-        """
         results = UserService.search_users_detailed(db, user_id_filter=user_id, limit=1)
         return results[0] if results else None
 
-    # --- SEARCH OPTIMIZATION (Fix N+1) ---
     @staticmethod
     def search_users_detailed(
         db: Session,
@@ -153,102 +155,91 @@ class UserService:
         role: str | None = None,
         dinas_id: int | None = None,
         is_verified: bool | None = None,
-        user_id_filter: int | None = None, # New param for single get
+        user_id_filter: int | None = None,
         limit: int = 100,
         offset: int = 0
     ) -> List[Dict[str, Any]]:
-        """
-        Mencari user dengan detail lengkap dalam 1 Query Utama.
-        """
-        # Subquery untuk menghitung submission created
+        
+        # Subqueries (gunakan snake_case columns)
         sub_created = db.query(
-            models.Submission.CreatorID, 
-            func.count(models.Submission.ID).label("total_created")
-        ).group_by(models.Submission.CreatorID).subquery()
+            models.Submission.creator_id, 
+            func.count(models.Submission.id).label("total_created")
+        ).group_by(models.Submission.creator_id).subquery()
 
-        # Subquery untuk menghitung submission received
         sub_received = db.query(
-            models.Submission.ReceiverID, 
-            func.count(models.Submission.ID).label("total_received")
-        ).group_by(models.Submission.ReceiverID).subquery()
+            models.Submission.receiver_id, 
+            func.count(models.Submission.id).label("total_received")
+        ).group_by(models.Submission.receiver_id).subquery()
 
         # Main Query
         query = db.query(
             models.User,
             models.Dinas,
             models.Wallet,
-            models.WalletType.Nama.label("wallet_type_name"),
+            models.WalletType.nama.label("wallet_type_name"),
             func.coalesce(sub_created.c.total_created, 0).label("created_count"),
             func.coalesce(sub_received.c.total_received, 0).label("received_count")
         ).outerjoin(
-            models.Dinas, models.User.DinasID == models.Dinas.ID
+            models.Dinas, models.User.dinas_id == models.Dinas.id
         ).outerjoin(
-            models.Wallet, models.User.ID == models.Wallet.UserID
+            models.Wallet, models.User.id == models.Wallet.user_id
         ).outerjoin(
-            models.WalletType, models.Wallet.WalletTypeID == models.WalletType.ID
+            models.WalletType, models.Wallet.wallet_type_id == models.WalletType.id
         ).outerjoin(
-            sub_created, models.User.ID == sub_created.c.CreatorID
+            sub_created, models.User.id == sub_created.c.creator_id
         ).outerjoin(
-            sub_received, models.User.ID == sub_received.c.ReceiverID
+            sub_received, models.User.id == sub_received.c.receiver_id
         )
 
-        # Filters
         if user_id_filter:
-            query = query.filter(models.User.ID == user_id_filter)
+            query = query.filter(models.User.id == user_id_filter)
         
         if search:
-            search_pattern = f"%{search}%"
+            pat = f"%{search}%"
             query = query.filter(
                 or_(
-                    models.User.NIP.ilike(search_pattern),
-                    models.User.NamaLengkap.ilike(search_pattern),
-                    models.User.Email.ilike(search_pattern)
+                    models.User.nip.ilike(pat),
+                    models.User.nama_lengkap.ilike(pat),
+                    models.User.email.ilike(pat)
                 )
             )
         
         if role:
-            # Handle enum filtering safely
             try:
-                role_enum = models.RoleEnum(role) # Strict check
-                query = query.filter(models.User.Role == role_enum)
+                role_enum = models.RoleEnum(role)
+                query = query.filter(models.User.role == role_enum)
             except ValueError:
-                pass # Or raise error if strict
+                pass
         
         if dinas_id is not None:
-            query = query.filter(models.User.DinasID == dinas_id)
+            query = query.filter(models.User.dinas_id == dinas_id)
         
         if is_verified is not None:
-            query = query.filter(models.User.isVerified == is_verified)
+            query = query.filter(models.User.is_verified == is_verified)
         
-        # Pagination
-        query = query.order_by(models.User.ID.desc())
+        query = query.order_by(models.User.id.desc())
         results = query.offset(offset).limit(limit).all()
         
-        # Mapping Result
         mapped_results = []
         for user, dinas, wallet, w_type, created_count, received_count in results:
-            # Construct Dictionary sesuai UserDetailResponse
-            # Note: Pydantic will handle `Dinas` nested object from `dinas` param if passed correctly,
-            # but here we are constructing flat dict mostly.
-            
+            # Return Dictionary sesuai field Schema (snake_case)
             user_dict = {
-                "ID": user.ID,
-                "NIP": user.NIP,
-                "NamaLengkap": user.NamaLengkap,
-                "Email": user.Email,
-                "NoTelepon": user.NoTelepon,
-                "Role": user.Role,
-                "isVerified": user.isVerified,
-                "DinasID": user.DinasID,
-                "Dinas": dinas, # Object Dinas untuk nested schema
+                "id": user.id,
+                "nip": user.nip,
+                "nama_lengkap": user.nama_lengkap,
+                "email": user.email,
+                "no_telepon": user.no_telepon,
+                "role": user.role,
+                "is_verified": user.is_verified,
+                "dinas_id": user.dinas_id,
+                "dinas": dinas,
                 
-                # Extra fields for UserDetailResponse
-                "DinasNama": dinas.Nama if dinas else None,
-                "WalletID": wallet.ID if wallet else None,
-                "WalletSaldo": float(wallet.Saldo) if wallet else None,
-                "WalletType": w_type,
-                "TotalSubmissionsCreated": created_count,
-                "TotalSubmissionsReceived": received_count
+                # Extra fields for Detail Response
+                "wallet_id": wallet.id if wallet else None,
+                "wallet_saldo": float(wallet.saldo) if wallet else None,
+                "wallet_type": w_type,
+                "total_submissions_created": created_count,
+                "total_submissions_received": received_count
             }
             mapped_results.append(user_dict)
             
@@ -257,89 +248,74 @@ class UserService:
     @staticmethod
     def count_users(db: Session, search=None, role=None, dinas_id=None, is_verified=None):
         q = db.query(models.User)
-        # Apply same filters as above (simplified for brevity)
         if search:
             pat = f"%{search}%"
-            q = q.filter(or_(models.User.NIP.ilike(pat), models.User.NamaLengkap.ilike(pat), models.User.Email.ilike(pat)))
+            q = q.filter(or_(models.User.nip.ilike(pat), models.User.nama_lengkap.ilike(pat), models.User.email.ilike(pat)))
         if role:
-             try: q = q.filter(models.User.Role == models.RoleEnum(role))
+             try: q = q.filter(models.User.role == models.RoleEnum(role))
              except: pass
-        if dinas_id: q = q.filter(models.User.DinasID == dinas_id)
-        if is_verified is not None: q = q.filter(models.User.isVerified == is_verified)
+        if dinas_id: q = q.filter(models.User.dinas_id == dinas_id)
+        if is_verified is not None: q = q.filter(models.User.is_verified == is_verified)
         return q.count()
     
     @staticmethod
     def get_user_balance(db: Session, user_id: int) -> Dict[str, Any]:
-        user = db.query(models.User).filter(models.User.ID == user_id).first()
+        user = db.query(models.User).filter(models.User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User tidak ditemukan")
         
-        wallet = db.query(models.Wallet).filter(models.Wallet.UserID == user_id).first()
+        wallet = db.query(models.Wallet).filter(models.Wallet.user_id == user_id).first()
         if not wallet:
             raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
         
-        # Pydantic akan meng-convert SQLAlchemy object 'user' menjadi UserSimpleResponse
+        # Return snake_case keys match Schema
         return {
-            "User": user, 
-            "DinasNama": user.dinas.Nama if user.dinas else None,
-            "WalletID": wallet.ID,
-            "Saldo": float(wallet.Saldo),
-            "WalletType": wallet.wallet_type.Nama if wallet.wallet_type else None
+            "user": user, 
+            "dinas_nama": user.dinas.nama if user.dinas else None,
+            "wallet_id": wallet.id,
+            "saldo": float(wallet.saldo),
+            "wallet_type": wallet.wallet_type.nama if wallet.wallet_type else None
         }
     
     @staticmethod
     def get_by_vehicle_id(db: Session, vehicle_id: int) -> List[models.User]:
-        """
-        Mendapatkan list user yang memegang kendaraan tertentu.
-        """
-        # Cek vehicle exists
-        veh = db.query(models.Vehicle).filter(models.Vehicle.ID == vehicle_id).first()
+        veh = db.query(models.Vehicle).filter(models.Vehicle.id == vehicle_id).first()
         if not veh:
             raise HTTPException(404, "Kendaraan tidak ditemukan")
 
-        users = db.query(models.User).join(
+        return db.query(models.User).join(
             models.user_vehicle_association,
-            models.user_vehicle_association.c.user_id == models.User.ID
+            models.user_vehicle_association.c.user_id == models.User.id
         ).filter(
             models.user_vehicle_association.c.vehicle_id == vehicle_id
         ).options(
             joinedload(models.User.dinas)
         ).all()
-        
-        return users
     
     @staticmethod
     def assign_vehicle(db: Session, user_id: int, vehicle_id: int) -> None:
-        """
-        Menambahkan hak akses kendaraan ke user tertentu.
-        """
-        user = db.query(models.User).filter(models.User.ID == user_id).first()
+        user = db.query(models.User).filter(models.User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User tidak ditemukan")
             
-        vehicle = db.query(models.Vehicle).filter(models.Vehicle.ID == vehicle_id).first()
+        vehicle = db.query(models.Vehicle).filter(models.Vehicle.id == vehicle_id).first()
         if not vehicle:
             raise HTTPException(status_code=404, detail="Kendaraan tidak ditemukan")
             
-        # Cek apakah sudah di-assign sebelumnya untuk menghindari duplikasi
         if vehicle not in user.vehicles:
             user.vehicles.append(vehicle)
             db.commit()
 
     @staticmethod
     def unassign_vehicle(db: Session, user_id: int, vehicle_id: int) -> None:
-        """
-        Mencabut hak akses kendaraan dari user tertentu.
-        """
-        user = db.query(models.User).filter(models.User.ID == user_id).first()
+        user = db.query(models.User).filter(models.User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User tidak ditemukan")
 
-        vehicle = db.query(models.Vehicle).filter(models.Vehicle.ID == vehicle_id).first()
+        vehicle = db.query(models.Vehicle).filter(models.Vehicle.id == vehicle_id).first()
         if not vehicle:
             raise HTTPException(status_code=404, detail="Kendaraan tidak ditemukan")
             
-        # Hapus jika ada dalam list
         if vehicle in user.vehicles:
             user.vehicles.remove(vehicle)
             db.commit()

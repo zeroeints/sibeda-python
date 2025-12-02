@@ -4,22 +4,17 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import extract, func
 from fastapi import HTTPException, UploadFile
 import model.models as models
-from model.models import Report as ReportModel, ReportLog as ReportLogModel, ReportStatusEnum, Submission as SubmissionModel
 from schemas.schemas import ReportCreate
 from utils.file_upload import save_report_photo
 
 class ReportService:
     @staticmethod
     def _get_base_query(db: Session):
-        """
-        Query dasar dengan Eager Loading lengkap.
-        Menambahkan: Dinas
-        """
-        return db.query(ReportModel).options(
-            joinedload(ReportModel.user),
-            joinedload(ReportModel.dinas), # [NEW] Load Dinas
-            joinedload(ReportModel.vehicle).joinedload(models.Vehicle.vehicle_type),
-            joinedload(ReportModel.logs).joinedload(ReportLogModel.updater)
+        return db.query(models.Report).options(
+            joinedload(models.Report.user),
+            joinedload(models.Report.dinas),
+            joinedload(models.Report.vehicle).joinedload(models.Vehicle.vehicle_type),
+            joinedload(models.Report.logs).joinedload(models.ReportLog.updater)
         )
 
     @staticmethod
@@ -29,47 +24,42 @@ class ReportService:
         vehicle_id: int | None = None,
         month: int | None = None,
         year: int | None = None,
-        dinas_id: int | None = None, # [UPDATED] Param baru
+        dinas_id: int | None = None,
         limit: int = 10,
         offset: int = 0
     ) -> Dict[str, Any]:
         q = ReportService._get_base_query(db)
 
-        # Filters
-        if user_id: q = q.filter(ReportModel.UserID == user_id)
-        if vehicle_id: q = q.filter(ReportModel.VehicleID == vehicle_id)
-        if month: q = q.filter(extract('month', ReportModel.Timestamp) == month)
-        if year: q = q.filter(extract('year', ReportModel.Timestamp) == year)
-        if dinas_id: q = q.filter(ReportModel.DinasID == dinas_id) # [UPDATED] Logic
+        if user_id: q = q.filter(models.Report.user_id == user_id)
+        if vehicle_id: q = q.filter(models.Report.vehicle_id == vehicle_id)
+        if month: q = q.filter(extract('month', models.Report.timestamp) == month)
+        if year: q = q.filter(extract('year', models.Report.timestamp) == year)
+        if dinas_id: q = q.filter(models.Report.dinas_id == dinas_id)
 
-        q = q.order_by(ReportModel.Timestamp.desc())
-        
-        # Pagination Data
+        q = q.order_by(models.Report.timestamp.desc())
         data = q.offset(offset).limit(limit).all()
 
-        # Count Total
-        count_q = db.query(func.count(ReportModel.ID))
-        if user_id: count_q = count_q.filter(ReportModel.UserID == user_id)
-        if vehicle_id: count_q = count_q.filter(ReportModel.VehicleID == vehicle_id)
-        if month: count_q = count_q.filter(extract('month', ReportModel.Timestamp) == month)
-        if year: count_q = count_q.filter(extract('year', ReportModel.Timestamp) == year)
-        if dinas_id: count_q = count_q.filter(ReportModel.DinasID == dinas_id) # [UPDATED] Logic
+        count_q = db.query(func.count(models.Report.id))
+        if user_id: count_q = count_q.filter(models.Report.user_id == user_id)
+        if vehicle_id: count_q = count_q.filter(models.Report.vehicle_id == vehicle_id)
+        if month: count_q = count_q.filter(extract('month', models.Report.timestamp) == month)
+        if year: count_q = count_q.filter(extract('year', models.Report.timestamp) == year)
+        if dinas_id: count_q = count_q.filter(models.Report.dinas_id == dinas_id)
         
         total_records = count_q.scalar() or 0
         has_more = (offset + len(data)) < total_records
 
-        # Statistics
-        stat_q = db.query(ReportModel.Status, func.count(ReportModel.ID))
-        if user_id: stat_q = stat_q.filter(ReportModel.UserID == user_id)
-        if vehicle_id: stat_q = stat_q.filter(ReportModel.VehicleID == vehicle_id)
-        if month: stat_q = stat_q.filter(extract('month', ReportModel.Timestamp) == month)
-        if year: stat_q = stat_q.filter(extract('year', ReportModel.Timestamp) == year)
-        if dinas_id: stat_q = stat_q.filter(ReportModel.DinasID == dinas_id) # [UPDATED] Logic
+        stat_q = db.query(models.Report.status, func.count(models.Report.id))
+        if user_id: stat_q = stat_q.filter(models.Report.user_id == user_id)
+        if vehicle_id: stat_q = stat_q.filter(models.Report.vehicle_id == vehicle_id)
+        if month: stat_q = stat_q.filter(extract('month', models.Report.timestamp) == month)
+        if year: stat_q = stat_q.filter(extract('year', models.Report.timestamp) == year)
+        if dinas_id: stat_q = stat_q.filter(models.Report.dinas_id == dinas_id)
         
-        stats_result = stat_q.group_by(ReportModel.Status).all()
+        stats_result = stat_q.group_by(models.Report.status).all()
         
         stat_dict = {"total_data": total_records}
-        for s in ReportStatusEnum:
+        for s in models.ReportStatusEnum:
             stat_dict[f"total_{s.value.lower()}"] = 0
         
         for status_enum, count in stats_result:
@@ -91,63 +81,60 @@ class ReportService:
         db: Session, 
         user_id: int, 
         vehicle_id: int | None = None,
-        month: int | None = None, # [UPDATED] Param baru
-        year: int | None = None,  # [UPDATED] Param baru
+        month: int | None = None,
+        year: int | None = None,
         limit: int = 100, 
         offset: int = 0
     ) -> Dict[str, Any]:
-        """
-        Versi Optimized dengan filter Month/Year
-        """
+        
         q = db.query(
-            ReportModel, 
-            SubmissionModel.Status.label("sub_status"),
-            SubmissionModel.TotalCashAdvance.label("sub_total")
+            models.Report, 
+            models.Submission.status.label("sub_status"),
+            models.Submission.total_cash_advance.label("sub_total")
         ).outerjoin(
-            SubmissionModel, SubmissionModel.KodeUnik == ReportModel.KodeUnik
+            models.Submission, models.Submission.kode_unik == models.Report.kode_unik
         ).options(
-            joinedload(ReportModel.user),
-            joinedload(ReportModel.dinas),
-            joinedload(ReportModel.vehicle).joinedload(models.Vehicle.vehicle_type),
-            joinedload(ReportModel.logs)
+            joinedload(models.Report.user),
+            joinedload(models.Report.dinas),
+            joinedload(models.Report.vehicle).joinedload(models.Vehicle.vehicle_type),
+            joinedload(models.Report.logs)
         )
 
-        # Filters
-        q = q.filter(ReportModel.UserID == user_id)
+        q = q.filter(models.Report.user_id == user_id)
         if vehicle_id:
-            q = q.filter(ReportModel.VehicleID == vehicle_id)
-        # [UPDATED] Filter logic
-        if month: q = q.filter(extract('month', ReportModel.Timestamp) == month)
-        if year: q = q.filter(extract('year', ReportModel.Timestamp) == year)
+            q = q.filter(models.Report.vehicle_id == vehicle_id)
+        
+        if month: q = q.filter(extract('month', models.Report.timestamp) == month)
+        if year: q = q.filter(extract('year', models.Report.timestamp) == year)
         
         total_records = q.count()
         
-        q = q.order_by(ReportModel.Timestamp.desc())
+        q = q.order_by(models.Report.timestamp.desc())
         raw_results = q.offset(offset).limit(limit).all()
         
         result_list = []
         for report, sub_status, sub_total in raw_results:
             item = {
-                "ID": report.ID,
-                "KodeUnik": report.KodeUnik,
-                "User": report.user,
-                "Vehicle": report.vehicle,
-                "Dinas": report.dinas,
-                "AmountRupiah": report.AmountRupiah,
-                "AmountLiter": report.AmountLiter,
-                "Description": report.Description,
-                "Status": report.Status,
-                "Timestamp": report.Timestamp,
-                "Latitude": report.Latitude,
-                "Longitude": report.Longitude,
-                "Odometer": report.Odometer,
-                "VehiclePhysicalPhotoPath": report.VehiclePhysicalPhotoPath,
-                "OdometerPhotoPath": report.OdometerPhotoPath,
-                "InvoicePhotoPath": report.InvoicePhotoPath,
-                "MyPertaminaPhotoPath": report.MyPertaminaPhotoPath,
-                "Logs": report.logs,
-                "SubmissionStatus": sub_status.value if sub_status else None,
-                "SubmissionTotal": float(sub_total) if sub_total else None
+                "id": report.id,
+                "kode_unik": report.kode_unik,
+                "user": report.user, 
+                "vehicle": report.vehicle, 
+                "dinas": report.dinas,
+                "amount_rupiah": report.amount_rupiah,
+                "amount_liter": report.amount_liter,
+                "description": report.description,
+                "status": report.status,
+                "timestamp": report.timestamp,
+                "latitude": report.latitude,
+                "longitude": report.longitude,
+                "odometer": report.odometer,
+                "vehicle_physical_photo_path": report.vehicle_physical_photo_path,
+                "odometer_photo_path": report.odometer_photo_path,
+                "invoice_photo_path": report.invoice_photo_path,
+                "my_pertamina_photo_path": report.my_pertamina_photo_path,
+                "logs": report.logs,
+                "submission_status": sub_status.value if sub_status else None,
+                "submission_total": float(sub_total) if sub_total else None
             }
             result_list.append(item)
 
@@ -164,39 +151,46 @@ class ReportService:
         }
 
     @staticmethod
-    def get(db: Session, report_id: int) -> Optional[ReportModel]:
-        return ReportService._get_base_query(db).filter(ReportModel.ID == report_id).first()
+    def get(db: Session, report_id: int) -> Optional[models.Report]:
+        return ReportService._get_base_query(db).filter(models.Report.id == report_id).first()
 
     @staticmethod
     def _create_report_log(db, report_id, status, user_id, notes):
-        log = ReportLogModel(ReportID=report_id, Status=status, UpdatedByUserID=user_id, Notes=notes)
+        log = models.ReportLog(report_id=report_id, status=status, updated_by_user_id=user_id, notes=notes)
         db.add(log)
 
     @staticmethod
-    def create(db: Session, payload: ReportCreate) -> ReportModel:
-        # [UPDATED] Validasi & Auto-assign DinasID
-        user = db.query(models.User).filter(models.User.ID == payload.UserID).first()
+    def create(db: Session, payload: ReportCreate) -> models.Report:
+        user = db.query(models.User).filter(models.User.id == payload.user_id).first()
         if not user: raise HTTPException(400, "UserID tidak ditemukan")
         
-        if not db.query(models.Vehicle).filter(models.Vehicle.ID == payload.VehicleID).first():
+        if not db.query(models.Vehicle).filter(models.Vehicle.id == payload.vehicle_id).first():
             raise HTTPException(400, "VehicleID tidak ditemukan")
         
-        status = ReportStatusEnum[payload.Status.value] if payload.Status else ReportStatusEnum.Pending
+        status = models.ReportStatusEnum[payload.status.value] if payload.status else models.ReportStatusEnum.pending
         
-        report = ReportModel(
-            KodeUnik=payload.KodeUnik, UserID=payload.UserID, VehicleID=payload.VehicleID,
-            AmountRupiah=payload.AmountRupiah, AmountLiter=payload.AmountLiter, Description=payload.Description,
-            Status=status, Latitude=payload.Latitude, Longitude=payload.Longitude,
-            VehiclePhysicalPhotoPath=payload.VehiclePhysicalPhotoPath, OdometerPhotoPath=payload.OdometerPhotoPath,
-            InvoicePhotoPath=payload.InvoicePhotoPath, MyPertaminaPhotoPath=payload.MyPertaminaPhotoPath,
-            Odometer=payload.Odometer, 
-            DinasID=user.DinasID # [NEW] Simpan DinasID
+        report = models.Report(
+            kode_unik=payload.kode_unik, 
+            user_id=payload.user_id, 
+            vehicle_id=payload.vehicle_id,
+            amount_rupiah=payload.amount_rupiah, 
+            amount_liter=payload.amount_liter, 
+            description=payload.description,
+            status=status, 
+            latitude=payload.latitude, 
+            longitude=payload.longitude,
+            vehicle_physical_photo_path=payload.vehicle_physical_photo_path, 
+            odometer_photo_path=payload.odometer_photo_path,
+            invoice_photo_path=payload.invoice_photo_path, 
+            my_pertamina_photo_path=payload.my_pertamina_photo_path,
+            odometer=payload.odometer, 
+            dinas_id=user.dinas_id 
         )
         db.add(report)
         db.flush()
-        ReportService._create_report_log(db, report.ID, status, payload.UserID, "Report dibuat")
+        ReportService._create_report_log(db, report.id, status, payload.user_id, "Report dibuat")
         db.commit()
-        return ReportService.get(db, report.ID) # type: ignore
+        return ReportService.get(db, report.id) # type: ignore
 
     @staticmethod
     async def create_with_upload(
@@ -205,12 +199,12 @@ class ReportService:
         odometer: Optional[int] = None, vehicle_photo: Optional[UploadFile] = None,
         odometer_photo: Optional[UploadFile] = None, invoice_photo: Optional[UploadFile] = None,
         mypertamina_photo: Optional[UploadFile] = None
-    ) -> ReportModel:
-        # [UPDATED] Validasi & Auto-assign DinasID
-        user = db.query(models.User).filter(models.User.ID == user_id).first()
+    ) -> models.Report:
+        
+        user = db.query(models.User).filter(models.User.id == user_id).first()
         if not user: raise HTTPException(400, "UserID tidak ditemukan")
         
-        if not db.query(models.Vehicle).filter(models.Vehicle.ID == vehicle_id).first():
+        if not db.query(models.Vehicle).filter(models.Vehicle.id == vehicle_id).first():
             raise HTTPException(400, "VehicleID tidak ditemukan")
         
         v_path = await save_report_photo(vehicle_photo, "vehicle")
@@ -219,36 +213,39 @@ class ReportService:
         m_path = await save_report_photo(mypertamina_photo, "mypertamina")
         
         try:
-            report = ReportModel(
-                KodeUnik=kode_unik, UserID=user_id, VehicleID=vehicle_id, AmountRupiah=amount_rupiah,
-                AmountLiter=amount_liter, Description=description, Status=ReportStatusEnum.Pending,
-                Latitude=latitude, Longitude=longitude, Odometer=odometer,
-                VehiclePhysicalPhotoPath=v_path, OdometerPhotoPath=o_path,
-                InvoicePhotoPath=i_path, MyPertaminaPhotoPath=m_path,
-                DinasID=user.DinasID # [NEW] Simpan DinasID
+            report = models.Report(
+                kode_unik=kode_unik, user_id=user_id, vehicle_id=vehicle_id, amount_rupiah=amount_rupiah,
+                amount_liter=amount_liter, description=description, status=models.ReportStatusEnum.pending,
+                latitude=latitude, longitude=longitude, odometer=odometer,
+                vehicle_physical_photo_path=v_path, odometer_photo_path=o_path,
+                invoice_photo_path=i_path, my_pertamina_photo_path=m_path,
+                dinas_id=user.dinas_id
             )
             db.add(report)
             db.flush()
-            ReportService._create_report_log(db, report.ID, ReportStatusEnum.Pending, user_id, "Report dengan foto")
+            ReportService._create_report_log(db, report.id, models.ReportStatusEnum.pending, user_id, "Report dengan foto")
             db.commit()
-            return ReportService.get(db, report.ID) # type: ignore
+            return ReportService.get(db, report.id) # type: ignore
         except Exception as e:
             db.rollback()
             raise HTTPException(500, f"Failed: {str(e)}")
 
-    # ... (update_status, delete tetap sama) ...
     @staticmethod
-    def update_status(db: Session, report_id: int, new_status: ReportStatusEnum, updated_by_user_id: int, notes: str | None) -> ReportModel:
-        r = db.query(ReportModel).filter(ReportModel.ID == report_id).first()
+    def update_status(db: Session, report_id: int, new_status: models.ReportStatusEnum, updated_by_user_id: int, notes: str | None) -> models.Report:
+        r = db.query(models.Report).filter(models.Report.id == report_id).first()
         if not r: raise HTTPException(404, "Report not found")
-        setattr(r, "Status", new_status)
-        ReportService._create_report_log(db, r.ID, new_status, updated_by_user_id, notes)
+        r.status = new_status
+        ReportService._create_report_log(db, r.id, new_status, updated_by_user_id, notes)
         db.commit()
-        return ReportService.get(db, r.ID) # type: ignore
+        return ReportService.get(db, r.id) # type: ignore
 
     @staticmethod
     def delete(db: Session, report_id: int) -> None:
-        r = db.query(ReportModel).filter(ReportModel.ID == report_id).first()
+        r = db.query(models.Report).filter(models.Report.id == report_id).first()
         if not r: raise HTTPException(404, "Not found")
         db.delete(r)
         db.commit()
+        
+    @staticmethod
+    def get_report_logs(db: Session, report_id: int):
+        return db.query(models.ReportLog).filter(models.ReportLog.report_id == report_id).order_by(models.ReportLog.timestamp.desc()).all()

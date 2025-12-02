@@ -1,8 +1,8 @@
 {
 	"info": {
-		"_postman_id": "sibeda-complete-api-v1",
-		"name": "SIBEDA API Complete (Full Spirit) 🚀",
-		"description": "Koleksi lengkap API SIBEDA Backend (FastAPI). Mencakup Auth, User Management, Vehicles, Reporting, Submission, Wallet, QR, dan Statistics.",
+		"_postman_id": "sibeda-complete-api-v2-pep8",
+		"name": "SIBEDA API V2 (PEP 8 Snake Case) 🐍",
+		"description": "Koleksi lengkap API SIBEDA Backend (FastAPI). Diupdate untuk mendukung skema snake_case (PEP 8) pada request body dan response.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -42,21 +42,6 @@
 							]
 						},
 						"url": { "raw": "{{base_url}}/login", "host": ["{{base_url}}"], "path": ["login"] }
-					}
-				},
-				{
-					"name": "OAuth2 Token Standard",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "formdata",
-							"formdata": [
-								{ "key": "username", "value": "100000000000000001", "type": "text" },
-								{ "key": "password", "value": "password123", "type": "text" }
-							]
-						},
-						"url": { "raw": "{{base_url}}/token", "host": ["{{base_url}}"], "path": ["token"] }
 					}
 				},
 				{
@@ -165,7 +150,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"NIP\": \"123456789012345678\",\n  \"NamaLengkap\": \"New User\",\n  \"Email\": \"newuser@example.com\",\n  \"NoTelepon\": \"08123456789\",\n  \"Password\": \"password123\"\n}",
+							"raw": "{\n  \"nip\": \"123456789012345678\",\n  \"nama_lengkap\": \"New User\",\n  \"email\": \"newuser@example.com\",\n  \"no_telepon\": \"08123456789\",\n  \"password\": \"password123\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/users", "host": ["{{base_url}}"], "path": ["users"] }
@@ -210,7 +195,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"NamaLengkap\": \"Updated Name\",\n  \"NoTelepon\": \"08999999999\"\n}",
+							"raw": "{\n  \"nama_lengkap\": \"Updated Name\",\n  \"no_telepon\": \"08999999999\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/users/1", "host": ["{{base_url}}"], "path": ["users", "1"] }
@@ -223,7 +208,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"NamaLengkap\": \"Patched Name\"\n}",
+							"raw": "{\n  \"nama_lengkap\": \"Patched Name\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/users/1", "host": ["{{base_url}}"], "path": ["users", "1"] }
@@ -252,7 +237,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"VehicleID\": 1\n}",
+							"raw": "{\n    \"vehicle_id\": 1\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/users/1/assign-vehicle", "host": ["{{base_url}}"], "path": ["users", "1", "assign-vehicle"] }
@@ -265,7 +250,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"VehicleID\": 1\n}",
+							"raw": "{\n    \"vehicle_id\": 1\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/users/1/unassign-vehicle", "host": ["{{base_url}}"], "path": ["users", "1", "unassign-vehicle"] }
@@ -307,7 +292,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"Nama\": \"Kijang Innova Reborn\",\n  \"Plat\": \"B 1234 ZZ\",\n  \"VehicleTypeID\": 1,\n  \"KapasitasMesin\": 2400,\n  \"Odometer\": 15000,\n  \"Status\": \"Active\",\n  \"JenisBensin\": \"Diesel\",\n  \"Merek\": \"Toyota\",\n  \"TipeTransmisi\": \"Matic\",\n  \"TotalFuelBar\": 8,\n  \"CurrentFuelBar\": 4,\n  \"DinasID\": 1\n}",
+							"raw": "{\n  \"nama\": \"Kijang Innova Reborn\",\n  \"plat\": \"B 1234 ZZ\",\n  \"vehicle_type_id\": 1,\n  \"kapasitas_mesin\": 2400,\n  \"odometer\": 15000,\n  \"status\": \"Active\",\n  \"jenis_bensin\": \"Diesel\",\n  \"merek\": \"Toyota\",\n  \"tipe_transmisi\": \"Matic\",\n  \"total_fuel_bar\": 8,\n  \"current_fuel_bar\": 4,\n  \"dinas_id\": 1\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/vehicle", "host": ["{{base_url}}"], "path": ["vehicle"] }
@@ -320,7 +305,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"Nama\": \"Updated Name\",\n  \"Plat\": \"B 1234 ZZ\",\n  \"VehicleTypeID\": 1,\n  \"Status\": \"Active\"\n}",
+							"raw": "{\n  \"nama\": \"Updated Name\",\n  \"plat\": \"B 1234 ZZ\",\n  \"vehicle_type_id\": 1,\n  \"status\": \"Active\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/vehicle/1", "host": ["{{base_url}}"], "path": ["vehicle", "1"] }
@@ -333,7 +318,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"Status\": \"Nonactive\"\n}",
+							"raw": "{\n  \"status\": \"Nonactive\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/vehicle/1", "host": ["{{base_url}}"], "path": ["vehicle", "1"] }
@@ -370,7 +355,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"UserID\": 2\n}",
+							"raw": "{\n    \"user_id\": 2\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/vehicle/1/assign", "host": ["{{base_url}}"], "path": ["vehicle", "1", "assign"] }
@@ -383,7 +368,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"UserID\": 2\n}",
+							"raw": "{\n    \"user_id\": 2\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/vehicle/1/unassign", "host": ["{{base_url}}"], "path": ["vehicle", "1", "unassign"] }
@@ -417,7 +402,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"Nama\": \"Truk Besar\"\n}",
+							"raw": "{\n  \"nama\": \"Truk Besar\",\n  \"plat\": \"DUMMY\",\n  \"vehicle_type_id\": 1\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/vehicle-type", "host": ["{{base_url}}"], "path": ["vehicle-type"] }
@@ -430,7 +415,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"Nama\": \"Truk Sangat Besar\"\n}",
+							"raw": "{\n  \"nama\": \"Truk Sangat Besar\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/vehicle-type/1", "host": ["{{base_url}}"], "path": ["vehicle-type", "1"] }
@@ -472,7 +457,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"KodeUnik\": \"SUB-2025-001\",\n  \"CreatorID\": 1,\n  \"ReceiverID\": 2,\n  \"TotalCashAdvance\": 250000,\n  \"Status\": \"Pending\",\n  \"Description\": \"Dinas Luar Kota\",\n  \"Date\": \"2025-11-30T10:00:00Z\"\n}",
+							"raw": "{\n  \"kode_unik\": \"SUB-2025-001\",\n  \"creator_id\": 1,\n  \"receiver_id\": 2,\n  \"total_cash_advance\": 250000,\n  \"status\": \"Pending\",\n  \"description\": \"Dinas Luar Kota\",\n  \"date\": \"2025-11-30T10:00:00Z\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/submission", "host": ["{{base_url}}"], "path": ["submission"] }
@@ -493,7 +478,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"TotalCashAdvance\": 300000,\n    \"Status\": \"Accepted\"\n}",
+							"raw": "{\n    \"total_cash_advance\": 300000,\n    \"status\": \"Accepted\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/submission/1", "host": ["{{base_url}}"], "path": ["submission", "1"] }
@@ -506,7 +491,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"Status\": \"Rejected\"\n}",
+							"raw": "{\n    \"status\": \"Rejected\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/submission/1", "host": ["{{base_url}}"], "path": ["submission", "1"] }
@@ -619,7 +604,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"Status\": \"Accepted\",\n    \"Notes\": \"Approved by admin\"\n}",
+							"raw": "{\n    \"status\": \"Accepted\",\n    \"notes\": \"Approved by admin\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/report/1/status", "host": ["{{base_url}}"], "path": ["report", "1", "status"] }
@@ -632,7 +617,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"Status\": \"Rejected\",\n    \"Notes\": \"Foto blur\"\n}",
+							"raw": "{\n    \"status\": \"Rejected\",\n    \"notes\": \"Foto blur\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/report/1/status", "host": ["{{base_url}}"], "path": ["report", "1", "status"] }
@@ -690,7 +675,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"UserID\": 2,\n    \"WalletTypeID\": 1,\n    \"Saldo\": 100000\n}",
+							"raw": "{\n    \"user_id\": 2,\n    \"wallet_type_id\": 1,\n    \"saldo\": 100000\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/wallet", "host": ["{{base_url}}"], "path": ["wallet"] }
@@ -703,7 +688,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"UserID\": 2,\n    \"WalletTypeID\": 1,\n    \"Saldo\": 200000\n}",
+							"raw": "{\n    \"user_id\": 2,\n    \"wallet_type_id\": 1,\n    \"saldo\": 200000\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/wallet/1", "host": ["{{base_url}}"], "path": ["wallet", "1"] }
@@ -732,7 +717,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"Nama\": \"Bank\"\n}",
+							"raw": "{\n    \"nama\": \"Bank\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/wallet/types", "host": ["{{base_url}}"], "path": ["wallet", "types"] }
@@ -758,7 +743,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"Nama\": \"Dinas Pendidikan\"\n}",
+							"raw": "{\n    \"nama\": \"Dinas Pendidikan\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/dinas", "host": ["{{base_url}}"], "path": ["dinas"] }
@@ -821,7 +806,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"NIP\": \"123456789012345678\",\n    \"UniqueCode\": \"1234\",\n    \"DinasID\": 1\n}",
+							"raw": "{\n    \"nip\": \"123456789012345678\",\n    \"unique_code\": \"1234\",\n    \"dinas_id\": 1\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{base_url}}/qr/assign", "host": ["{{base_url}}"], "path": ["qr", "assign"] }

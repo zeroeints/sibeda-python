@@ -1,39 +1,42 @@
 from __future__ import annotations
-from pydantic import BaseModel, Field, field_validator, ConfigDict
 from enum import Enum
-from typing import Generic, TypeVar, List, Optional, Any, Dict
+from typing import Generic, TypeVar, List, Dict
 from datetime import datetime
+
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 T = TypeVar("T")
 
-# --- Enums (Existing) ---
+# --- Enums ---
+
 class RoleEnum(str, Enum):
     admin = "admin"
     kepala_dinas = "kepala_dinas"
     pic = "pic"
 
 class VehicleStatusEnum(str, Enum):
-    Active = "Active"
-    Nonactive = "Nonactive"
+    active = "Active"
+    nonactive = "Nonactive"
 
 class SubmissionStatusEnum(str, Enum):
-    Accepted = "Accepted"
-    Rejected = "Rejected"
-    Pending = "Pending"
+    accepted = "Accepted"
+    rejected = "Rejected"
+    pending = "Pending"
 
 class ReportStatusEnum(str, Enum):
-    Pending = "Pending"
-    Reviewed = "Reviewed"
-    Accepted = "Accepted"
-    Rejected = "Rejected"
+    pending = "Pending"
+    reviewed = "Reviewed"
+    accepted = "Accepted"
+    rejected = "Rejected"
+
 
 # --- Base Response Wrappers ---
+
 class SuccessResponse(BaseModel, Generic[T]):
     success: bool = True
     data: T
     message: str | None = None
 
-# --- NEW: Standardized List Data Structure ---
 class PagedListData(BaseModel, Generic[T]):
     list: List[T]
     limit: int
@@ -41,7 +44,7 @@ class PagedListData(BaseModel, Generic[T]):
     has_more: bool
     month: int | None = None
     year: int | None = None
-    stat: Dict[str, int] # Berisi total_data, total_pending, dll.
+    stat: Dict[str, int] = Field(default_factory=dict)
 
 class SuccessListResponse(SuccessResponse[List[T]], Generic[T]):
     pass
@@ -50,118 +53,149 @@ class PaginatedResponse(BaseModel, Generic[T]):
     success: bool = True
     data: List[T]
     message: str | None = None
-    pagination: dict[str, int | bool]
+    pagination: Dict[str, int | bool]
 
 class Message(BaseModel):
     detail: str
 
 
-# --- Simple Models (Existing) ---
+# --- Simple Models (Nested Responses) ---
+
 class UserSimpleResponse(BaseModel):
-    ID: int
-    NIP: str
-    NamaLengkap: str
-    Role: RoleEnum
-    Email: str
-    NoTelepon: str | None = None
+    id: int
+    nip: str
+    nama_lengkap: str
+    role: RoleEnum
+    email: str
+    no_telepon: str | None = None
+    
     model_config = ConfigDict(from_attributes=True)
 
 class VehicleTypeResponse(BaseModel):
-    ID: int
-    Nama: str
+    id: int
+    nama: str
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class DinasSimpleResponse(BaseModel):
+    id: int
+    nama: str
+    
     model_config = ConfigDict(from_attributes=True)
 
 class VehicleSimpleResponse(BaseModel):
-    ID: int
-    Nama: str
-    Plat: str
-    Status: VehicleStatusEnum
-    VehicleType: VehicleTypeResponse | None = None
-    AssetIconName: str | None = None
-    AssetIconColor: str | None = None
+    id: int
+    nama: str
+    plat: str
+    status: VehicleStatusEnum
+    
+    # Nested Relationships
+    vehicle_type: VehicleTypeResponse | None = None
+    
+    asset_icon_name: str | None = None
+    asset_icon_color: str | None = None
+    
     model_config = ConfigDict(from_attributes=True)
 
-# --- Log Models (Existing) ---
+
+# --- Log Models ---
+
 class SubmissionLogResponse(BaseModel):
-    ID: int
-    Status: SubmissionStatusEnum
-    Timestamp: datetime
-    UpdatedByUserID: int | None = None
-    Notes: str | None = None
+    id: int
+    status: SubmissionStatusEnum
+    timestamp: datetime
+    updated_by_user_id: int | None = None
+    notes: str | None = None
+    
     model_config = ConfigDict(from_attributes=True)
 
 class ReportLogResponse(BaseModel):
-    ID: int
-    Status: ReportStatusEnum
-    Timestamp: datetime
-    UpdatedByUserID: int | None = None
-    Notes: str | None = None
+    id: int
+    status: ReportStatusEnum
+    timestamp: datetime
+    updated_by_user_id: int | None = None
+    notes: str | None = None
+    
     model_config = ConfigDict(from_attributes=True)
 
-# --- User Schemas ---
-class UserBase(BaseModel):
-    NIP: str = Field(..., min_length=18, max_length=50)
-    NamaLengkap: str
-    Email: str
-    NoTelepon: str | None = None
 
-    @field_validator("NIP")
+# --- User Schemas ---
+
+class UserBase(BaseModel):
+    nip: str = Field(..., min_length=18, max_length=50)
+    nama_lengkap: str
+    email: str
+    no_telepon: str | None = None
+
+    @field_validator("nip")
     @classmethod
     def nip_strip(cls, v: str) -> str:
         return v.strip()
 
 class UserCreate(UserBase):
-    Password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=8)
 
 class UserUpdate(BaseModel):
-    NIP: str | None = None
-    NamaLengkap: str | None = None
-    Email: str | None = None
-    NoTelepon: str | None = None
-    Password: str | None = None
-    Role: RoleEnum | None = None
-    DinasID: int | None = None
+    nip: str | None = None
+    nama_lengkap: str | None = None
+    email: str | None = None
+    no_telepon: str | None = None
+    password: str | None = None
+    role: RoleEnum | None = None
+    dinas_id: int | None = None
 
 class UserResponse(UserBase):
-    ID: int
-    Role: RoleEnum
-    isVerified: bool | None = None
+    id: int
+    role: RoleEnum
+    is_verified: bool | None = None
     
-    Dinas: DinasSimpleResponse | None = None 
+    # Relationships
+    dinas: DinasSimpleResponse | None = None
     
     model_config = ConfigDict(from_attributes=True)
 
 class UserDetailResponse(UserResponse):
-    WalletID: int | None = None
-    WalletSaldo: float | None = None
-    WalletType: str | None = None
+    # Field tambahan hasil query manual (tetap butuh alias jika query mengembalikan nama spesifik, 
+    # tapi jika query di service sudah disesuaikan ke snake_case, alias bisa dihapus).
+    # Kita asumsikan Service juga akan diperbaiki untuk return dict dengan key snake_case.
+    wallet_id: int | None = None
+    wallet_saldo: float | None = None
+    wallet_type: str | None = None
     
-    # Stats
-    TotalSubmissionsCreated: int = 0
-    TotalSubmissionsReceived: int = 0
+    total_submissions_created: int = 0
+    total_submissions_received: int = 0
     
     model_config = ConfigDict(from_attributes=True)
 
 class UserBalanceResponse(BaseModel):
-    User: UserSimpleResponse
-    DinasNama: str | None = None
-    WalletID: int
-    Saldo: float
-    WalletType: str | None = None
+    user: UserSimpleResponse
+    dinas_nama: str | None = None
+    wallet_id: int
+    saldo: float
+    wallet_type: str | None = None
+    
     model_config = ConfigDict(from_attributes=True)
 
+
 # --- Auth Schemas ---
+
 class LoginJSON(BaseModel):
-    NIP: str
-    Password: str
+    nip: str
+    password: str
 
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
+class TokenClaims(BaseModel):
+    sub: str | None = None
+    id: int | None = None
+    role: List[str] | str | None = None
+    exp: int | None = None
+
 class TokenVerifyData(BaseModel):
     valid: bool
-    claims: dict | None = None
+    claims: TokenClaims | None = None
     reason: str | None = None
 
 class ChangePasswordRequest(BaseModel):
@@ -184,152 +218,172 @@ class OTPVerifyResponse(BaseModel):
     valid: bool
     reason: str | None = None
 
+
 # --- Dinas & Wallet Type ---
+
 class DinasBase(BaseModel):
-    Nama: str
+    nama: str
 
 class DinasResponse(DinasBase):
-    ID: int
+    id: int
     model_config = ConfigDict(from_attributes=True)
 
 class WalletTypeBase(BaseModel):
-    Nama: str
+    nama: str
 
 class WalletTypeResponse(WalletTypeBase):
-    ID: int
+    id: int
     model_config = ConfigDict(from_attributes=True)
 
 class WalletCreate(BaseModel):
-    UserID: int
-    WalletTypeID: int
-    Saldo: float = 0
+    user_id: int
+    wallet_type_id: int
+    saldo: float = 0
 
 class WalletResponse(BaseModel):
-    ID: int
-    User: UserSimpleResponse
-    WalletType: WalletTypeResponse
-    Saldo: float
+    id: int
+    user: UserSimpleResponse
+    wallet_type: WalletTypeResponse
+    saldo: float
+    
     model_config = ConfigDict(from_attributes=True)
 
+class WalletUpdate(BaseModel):
+    user_id: int | None = None
+    wallet_type_id: int | None = None
+    saldo: float | None = None
+
+
 # --- Vehicle Schemas ---
+
 class VehicleCreate(BaseModel):
-    Nama: str
-    Plat: str
-    VehicleTypeID: int
-    KapasitasMesin: int | None = None
-    Odometer: int | None = None
-    Status: VehicleStatusEnum | None = None
-    JenisBensin: str | None = None
-    Merek: str | None = None
-    FotoFisik: str | None = None
-    AssetIconName: str | None = None
-    AssetIconColor: str | None = None
-    TipeTransmisi: str | None = None
-    TotalFuelBar: int | None = None
-    CurrentFuelBar: int | None = None
-    DinasID: int | None = None
+    nama: str
+    plat: str
+    vehicle_type_id: int
+    dinas_id: int | None = None
+    
+    kapasitas_mesin: int | None = None
+    odometer: int | None = None
+    status: VehicleStatusEnum | None = None
+    jenis_bensin: str | None = None
+    merek: str | None = None
+    
+    foto_fisik: str | None = None
+    asset_icon_name: str | None = None
+    asset_icon_color: str | None = None
+    tipe_transmisi: str | None = None
+    total_fuel_bar: int | None = None
+    current_fuel_bar: int | None = None
 
 class VehicleUpdate(BaseModel):
-    Nama: str
-    Plat: str
-    VehicleTypeID: int
-    KapasitasMesin: int | None = None
-    Odometer: int | None = None
-    Status: VehicleStatusEnum | None = None
-    JenisBensin: str | None = None
-    Merek: str | None = None
-    FotoFisik: str | None = None
-    AssetIconName: str | None = None
-    AssetIconColor: str | None = None
-    DinasID: int | None = None
+    nama: str | None = None
+    plat: str | None = None
+    vehicle_type_id: int | None = None
+    dinas_id: int | None = None
+    
+    kapasitas_mesin: int | None = None
+    odometer: int | None = None
+    status: VehicleStatusEnum | None = None
+    jenis_bensin: str | None = None
+    merek: str | None = None
+    
+    foto_fisik: str | None = None
+    asset_icon_name: str | None = None
+    asset_icon_color: str | None = None
+
+class VehicleTypeUpdate(BaseModel):
+    nama: str | None = None
 
 class VehicleResponse(BaseModel):
-    ID: int
-    Nama: str
-    Plat: str
-    Status: VehicleStatusEnum
-    VehicleType: VehicleTypeResponse | None = None
-    Dinas: DinasSimpleResponse | None = None
-    KapasitasMesin: int | None = None
-    Odometer: int | None = None
-    JenisBensin: str | None = None
-    Merek: str | None = None
+    id: int
+    nama: str
+    plat: str
+    status: VehicleStatusEnum
+    
+    # Relations
+    vehicle_type: VehicleTypeResponse | None = None
+    dinas: DinasSimpleResponse | None = None
+    
+    kapasitas_mesin: int | None = None
+    odometer: int | None = None
+    jenis_bensin: str | None = None
+    merek: str | None = None
     
     # Visuals
-    FotoFisik: str | None = None
-    AssetIconName: str | None = None
-    AssetIconColor: str | None = None
+    foto_fisik: str | None = None
+    asset_icon_name: str | None = None
+    asset_icon_color: str | None = None
     
-    # [NEW] Explicit Fields
-    TipeTransmisi: str | None = None
-    TotalFuelBar: int | None = None
-    CurrentFuelBar: int | None = None
-    DinasID: int | None = None
+    tipe_transmisi: str | None = None
+    total_fuel_bar: int | None = None
+    current_fuel_bar: int | None = None
+    dinas_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 class VehicleAssignmentRequest(BaseModel):
-    UserID: int
+    user_id: int
 
 class UserAssignmentRequest(BaseModel):
-    VehicleID: int
+    vehicle_id: int
 
 class RefuelHistoryItem(BaseModel):
-    ID: int
-    KodeUnik: str
-    AmountRupiah: float
-    AmountLiter: float
-    Timestamp: datetime
-    Odometer: int | None = None
+    id: int
+    kode_unik: str
+    amount_rupiah: float
+    amount_liter: float
+    timestamp: datetime
+    odometer: int | None = None
+    
     model_config = ConfigDict(from_attributes=True)
 
 class MyVehicleResponse(VehicleResponse):
-    # Stats fields
-    TotalSubmissions: int = 0 # [Renamed for consistency if needed, but keeping as schema]
-    TotalReports: int = 0
-    TotalFuelLiters: float = 0.0
-    TotalRupiahSpent: float = 0.0
-    LastRefuelDate: datetime | None = None
+    total_submissions: int = 0
+    total_reports: int = 0
+    total_fuel_liters: float = 0.0
+    total_rupiah_spent: float = 0.0
+    last_refuel_date: datetime | None = None
     
 class VehicleDetailResponse(MyVehicleResponse):
-    RecentRefuelHistory: List[RefuelHistoryItem] = []
+    recent_refuel_history: List[RefuelHistoryItem] = Field(default_factory=list)
+
 
 # --- Submission Schemas ---
+
 class SubmissionCreate(BaseModel):
-    KodeUnik: str
-    CreatorID: int
-    ReceiverID: int
-    TotalCashAdvance: float
-    Description: str | None = None
-    Date: datetime 
-    Status: SubmissionStatusEnum | None = None
+    kode_unik: str
+    creator_id: int
+    receiver_id: int
+    total_cash_advance: float
+    description: str | None = None
+    date: datetime 
+    status: SubmissionStatusEnum | None = None
 
 class SubmissionUpdate(BaseModel):
-    KodeUnik: str | None = None
-    CreatorID: int | None = None
-    ReceiverID: int | None = None
-    TotalCashAdvance: float | None = None
-    Status: SubmissionStatusEnum | None = None
-
-class DinasSimpleResponse(BaseModel):
-    ID: int
-    Nama: str
-    model_config = ConfigDict(from_attributes=True)
+    kode_unik: str | None = None
+    creator_id: int | None = None
+    receiver_id: int | None = None
+    total_cash_advance: float | None = None
+    status: SubmissionStatusEnum | None = None
 
 class SubmissionResponse(BaseModel):
-    ID: int
-    KodeUnik: str
-    Creator: UserSimpleResponse
-    Receiver: UserSimpleResponse
-    # Tambahan Field
-    Dinas: DinasSimpleResponse | None = None  # Info Dinas pemilik anggaran
-    Description: str | None = None            # Keterangan pengajuan
-    Date: datetime | None = None              # Tanggal pengajuan (user input)
+    id: int
+    kode_unik: str
     
-    TotalCashAdvance: float
-    Status: SubmissionStatusEnum
+    # Relations
+    creator: UserSimpleResponse
+    receiver: UserSimpleResponse
+    dinas: DinasSimpleResponse | None = None
+    
+    description: str | None = None
+    date: datetime | None = None
+    
+    total_cash_advance: float
+    status: SubmissionStatusEnum
     created_at: datetime
-    Logs: List[SubmissionLogResponse] = Field(default_factory=list)
+    
+    logs: List[SubmissionLogResponse] = Field(default_factory=list)
+    
     model_config = ConfigDict(from_attributes=True)
 
 class SubmissionSummary(BaseModel):
@@ -348,77 +402,86 @@ class SubmissionMonthlyReport(BaseModel):
     summary: SubmissionSummary
     details: List[SubmissionResponse]
 
+
 # --- Report Schemas ---
+
 class ReportCreate(BaseModel):
-    KodeUnik: str
-    UserID: int
-    VehicleID: int
-    AmountRupiah: float
-    AmountLiter: float
-    Description: str | None = None
-    Status: ReportStatusEnum | None = None
-    Latitude: float | None = None
-    Longitude: float | None = None
-    VehiclePhysicalPhotoPath: str | None = None
-    OdometerPhotoPath: str | None = None
-    InvoicePhotoPath: str | None = None
-    MyPertaminaPhotoPath: str | None = None
-    Odometer: int | None = None
+    kode_unik: str
+    user_id: int
+    vehicle_id: int
+    amount_rupiah: float
+    amount_liter: float
+    
+    description: str | None = None
+    status: ReportStatusEnum | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    odometer: int | None = None
+    
+    vehicle_physical_photo_path: str | None = None
+    odometer_photo_path: str | None = None
+    invoice_photo_path: str | None = None
+    my_pertamina_photo_path: str | None = None
 
 class ReportUpdate(BaseModel):
-    KodeUnik: str | None = None
-    UserID: int | None = None
-    VehicleID: int | None = None
-    AmountRupiah: float | None = None
-    AmountLiter: float | None = None
-    Description: str | None = None
-    Status: ReportStatusEnum | None = None
-    Latitude: float | None = None
-    Longitude: float | None = None
-    VehiclePhysicalPhotoPath: str | None = None
-    OdometerPhotoPath: str | None = None
-    InvoicePhotoPath: str | None = None
-    MyPertaminaPhotoPath: str | None = None
-    Odometer: int | None = None
+    kode_unik: str | None = None
+    user_id: int | None = None
+    vehicle_id: int | None = None
+    amount_rupiah: float | None = None
+    amount_liter: float | None = None
+    description: str | None = None
+    status: ReportStatusEnum | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    odometer: int | None = None
+    
+    vehicle_physical_photo_path: str | None = None
+    odometer_photo_path: str | None = None
+    invoice_photo_path: str | None = None
+    my_pertamina_photo_path: str | None = None
 
 class ReportResponse(BaseModel):
-    ID: int
-    KodeUnik: str
-    User: UserSimpleResponse
-    Vehicle: VehicleSimpleResponse
-    # [NEW] Menambahkan Info Dinas
-    Dinas: DinasSimpleResponse | None = None
+    id: int
+    kode_unik: str
     
-    AmountRupiah: float
-    AmountLiter: float
-    Description: str | None = None
-    Status: ReportStatusEnum
-    Timestamp: datetime
-    Latitude: float | None = None
-    Longitude: float | None = None
+    # Relations
+    user: UserSimpleResponse
+    vehicle: VehicleSimpleResponse
+    dinas: DinasSimpleResponse | None = None
+    
+    amount_rupiah: float
+    amount_liter: float
+    description: str | None = None
+    status: ReportStatusEnum
+    timestamp: datetime
+    latitude: float | None = None
+    longitude: float | None = None
     
     # Photos
-    VehiclePhysicalPhotoPath: str | None = None
-    OdometerPhotoPath: str | None = None
-    InvoicePhotoPath: str | None = None
-    MyPertaminaPhotoPath: str | None = None
-    Odometer: int | None = None
+    vehicle_physical_photo_path: str | None = None
+    odometer_photo_path: str | None = None
+    invoice_photo_path: str | None = None
+    my_pertamina_photo_path: str | None = None
+    odometer: int | None = None
     
-    Logs: List[ReportLogResponse] = Field(default_factory=list)
+    logs: List[ReportLogResponse] = Field(default_factory=list)
+    
     model_config = ConfigDict(from_attributes=True)
 
 class ReportStatusUpdateRequest(BaseModel):
-    Status: ReportStatusEnum
-    Notes: str | None = None
+    status: ReportStatusEnum
+    notes: str | None = None
 
 class MyReportResponse(ReportResponse):
-    SubmissionStatus: str | None = None
-    SubmissionTotal: float | None = None
+    submission_status: str | None = None
+    submission_total: float | None = None
 
 class ReportDetailResponse(ReportResponse):
-    Submission: SubmissionResponse | None = None
+    submission: SubmissionResponse | None = None
+
 
 # --- Stats Schemas ---
+
 class MonthlyData(BaseModel):
     month: int
     value: float
@@ -451,24 +514,17 @@ class UserCountByDinas(BaseModel):
     dinas_nama: str
     total_users: int
 
+
 # --- QR Schemas ---
+
 class QRAssignRequest(BaseModel):
-    NIP: str
-    UniqueCode: str
-    DinasID: int
+    nip: str
+    unique_code: str
+    dinas_id: int
 
 class QRGetResponse(BaseModel):
     code: str | None = None
-    expiresAt: str | None = None
+    expires_at: str | None = Field(default=None, serialization_alias="expiresAt") # camelCase untuk frontend
 
 class QRScanRequest(BaseModel):
     kode_unik: str
-
-class WalletUpdate(BaseModel):
-    UserID: int | None = None
-    WalletTypeID: int | None = None
-    Saldo: float | None = None
-
-# Tambahkan Class ini untuk VehicleType
-class VehicleTypeUpdate(BaseModel):
-    Nama: str | None = None
