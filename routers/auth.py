@@ -73,31 +73,36 @@ def login(
         raise HTTPException(
             status_code=401, detail=get_message("invalid_credentials", lang)
         )
-    if not getattr(user, "isVerified", False):
+    
+    # Update: is_verified (snake_case)
+    if not getattr(user, "is_verified", False):
         raise HTTPException(status_code=403, detail="account_not_verified")
 
     # Construct claims
-    role = user.Role.value if hasattr(user.Role, "value") else user.Role
-    dinas_id = getattr(user, "DinasID", None)
+    # Update: user.role (snake_case)
+    role = user.role.value if hasattr(user.role, "value") else user.role
+    
+    # Update: user.dinas_id, user.dinas (snake_case)
+    dinas_id = getattr(user, "dinas_id", None)
     dinas_rel = getattr(user, "dinas", None)
-    dinas_name = getattr(dinas_rel, "Nama", None) if dinas_rel else None
+    dinas_name = getattr(dinas_rel, "nama", None) if dinas_rel else None
     
     dinas_obj: Dict[str, Any] | None = (
-        {"DinasID": dinas_id, "Nama": dinas_name} if dinas_id is not None else None
+        {"dinas_id": dinas_id, "nama": dinas_name} if dinas_id is not None else None
     )
 
     claims: Dict[str, Any] = {
-        "sub": user.NIP,
-        "ID": user.ID,
-        "NIP": user.NIP,
-        "Role": [str(role)],
-        "NamaLengkap": user.NamaLengkap,
-        "Email": user.Email,
-        "NoTelepon": user.NoTelepon,
-        "DinasID": dinas_id,
-        "Dinas": dinas_obj,
-        "isVerified": getattr(user, "isVerified", None),
-        "Lang": lang,
+        "sub": user.nip,           # Update: user.nip
+        "id": user.id,             # Update: user.id
+        "nip": user.nip,           # Update: user.nip
+        "role": [str(role)],
+        "nama_lengkap": user.nama_lengkap, # Update: user.nama_lengkap
+        "email": user.email,       # Update: user.email
+        "no_telepon": user.no_telepon, # Update: user.no_telepon
+        "dinas_id": dinas_id,
+        "dinas": dinas_obj,
+        "is_verified": getattr(user, "is_verified", None), # Update: is_verified
+        "lang": lang,
     }
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -144,7 +149,8 @@ def verify_token(
         if check_user:
             # Avoid circular import if possible, or import inside
             from model.models import User
-            exists = db.query(User).filter(User.NIP == claims.sub).first()
+            # Update: User.nip
+            exists = db.query(User).filter(User.nip == claims.sub).first()
             if not exists:
                 return schemas.SuccessResponse[schemas.TokenVerifyData](
                     data=schemas.TokenVerifyData(
@@ -176,27 +182,31 @@ def token(
         raise HTTPException(
             status_code=401, detail=get_message("invalid_credentials", lang)
         )
-    if not getattr(user, "isVerified", False):
+    # Update: is_verified
+    if not getattr(user, "is_verified", False):
         raise HTTPException(status_code=403, detail="account_not_verified")
 
     # Claims logic similar to login...
-    role = user.Role.value if hasattr(user.Role, "value") else user.Role
-    dinas_id = getattr(user, "DinasID", None)
+    # Update: user.role
+    role = user.role.value if hasattr(user.role, "value") else user.role
+    
+    # Update: user.dinas_id, user.dinas
+    dinas_id = getattr(user, "dinas_id", None)
     dinas_rel = getattr(user, "dinas", None)
-    dinas_name = getattr(dinas_rel, "Nama", None) if dinas_rel else None
+    dinas_name = getattr(dinas_rel, "nama", None) if dinas_rel else None
     
     claims: Dict[str, Any] = {
-        "sub": user.NIP,
-        "ID": user.ID,
-        "NIP": user.NIP,
-        "Role": [str(role)],
-        "NamaLengkap": user.NamaLengkap,
-        "Email": user.Email,
-        "NoTelepon": user.NoTelepon,
-        "DinasID": dinas_id,
-        "Dinas": {"DinasID": dinas_id, "Nama": dinas_name} if dinas_id else None,
-        "isVerified": getattr(user, "isVerified", None),
-        "Lang": lang,
+        "sub": user.nip,           # Update: user.nip
+        "id": user.id,             # Update: user.id
+        "nip": user.nip,           # Update: user.nip
+        "role": [str(role)],
+        "nama_lengkap": user.nama_lengkap, # Update: user.nama_lengkap
+        "email": user.email,       # Update: user.email
+        "no_telepon": user.no_telepon, # Update: user.no_telepon
+        "dinas_id": dinas_id,
+        "dinas": {"dinas_id": dinas_id, "nama": dinas_name} if dinas_id else None,
+        "is_verified": getattr(user, "is_verified", None), # Update: is_verified
+        "lang": lang,
     }
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -217,7 +227,8 @@ def forgot_password(
     db: Session = Depends(get_db),
 ):
     lang = detect_lang(request)
-    user = db.query(models.User).filter(models.User.Email == payload.email).first()
+    # Update: User.email
+    user = db.query(models.User).filter(models.User.email == payload.email).first()
     if user:
         create_password_reset_code(db, user)
         # TODO: Implement email sending here
@@ -238,7 +249,8 @@ def verify_otp(
     db: Session = Depends(get_db),
 ):
     lang = detect_lang(request)
-    user = db.query(models.User).filter(models.User.Email == payload.email).first()
+    # Update: User.email
+    user = db.query(models.User).filter(models.User.email == payload.email).first()
     
     if not user:
         return schemas.SuccessResponse[schemas.OTPVerifyResponse](
@@ -270,7 +282,8 @@ def reset_password(
     db: Session = Depends(get_db),
 ):
     lang = detect_lang(request)
-    user = db.query(models.User).filter(models.User.Email == payload.email).first()
+    # Update: User.email
+    user = db.query(models.User).filter(models.User.email == payload.email).first()
     
     if not user:
         return schemas.SuccessResponse[schemas.Message](
@@ -285,8 +298,9 @@ def reset_password(
             data=schemas.Message(detail=reason or "invalid"),
             message=get_message(key, lang),
         )
-        
-    setattr(user, "Password", auth.get_password_hash(payload.new_password))
+    
+    # Update: user.password
+    setattr(user, "password", auth.get_password_hash(payload.new_password))
     db.add(user)
     consume_password_reset_code(db, user, payload.otp)
     db.commit()
@@ -313,7 +327,8 @@ def verify_register(
     db: Session = Depends(get_db),
 ):
     lang = detect_lang(request)
-    user = db.query(models.User).filter(models.User.Email == payload.email).first()
+    # Update: User.email
+    user = db.query(models.User).filter(models.User.email == payload.email).first()
     
     if not user:
         return schemas.SuccessResponse[schemas.OTPVerifyResponse](
@@ -328,8 +343,9 @@ def verify_register(
             data=schemas.OTPVerifyResponse(valid=False, reason=reason),
             message=get_message(key, lang),
         )
-        
-    setattr(user, "isVerified", True)
+    
+    # Update: is_verified
+    setattr(user, "is_verified", True)
     db.add(user)
     consume_account_verification_code(db, user, payload.otp)
     db.commit()
@@ -354,14 +370,16 @@ def resend_register_otp(
     db: Session = Depends(get_db),
 ):
     lang = detect_lang(request)
-    user = db.query(models.User).filter(models.User.Email == payload.email).first()
+    # Update: User.email
+    user = db.query(models.User).filter(models.User.email == payload.email).first()
     
     if not user:
         return schemas.SuccessResponse[schemas.Message](
             data=schemas.Message(detail="ok"), message=get_message("otp_sent", lang)
         )
-        
-    if getattr(user, "isVerified", False):
+    
+    # Update: is_verified
+    if getattr(user, "is_verified", False):
         return schemas.SuccessResponse[schemas.Message](
             data=schemas.Message(detail="already_verified"), message="already_verified"
         )
@@ -369,8 +387,10 @@ def resend_register_otp(
     rec = create_account_verification_code(db, user)
     settings = get_settings()
     msg = get_message("otp_sent", lang)
+    
+    # Update: rec.kode_unik
     if settings.debug:
-        msg = f"{msg} | OTP={rec.KodeUnik}"
+        msg = f"{msg} | OTP={rec.kode_unik}"
         
     return schemas.SuccessResponse[schemas.Message](
         data=schemas.Message(detail="resent"), message=msg
@@ -388,33 +408,38 @@ def refresh_token(
     db: Session = Depends(get_db),
 ) -> schemas.SuccessResponse[schemas.Token]:
     lang = detect_lang(request)
-    user = db.query(models.User).filter(models.User.ID == current_user.ID).first()
+    # Update: User.id
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
     
     if not user:
         raise HTTPException(
             status_code=404, detail=get_message("user_not_found", lang)
         )
-    if not getattr(user, "isVerified", False):
+    # Update: is_verified
+    if not getattr(user, "is_verified", False):
         raise HTTPException(status_code=403, detail="account_not_verified")
 
     # Re-generate claims
-    role = user.Role.value if hasattr(user.Role, "value") else user.Role
-    dinas_id = getattr(user, "DinasID", None)
+    # Update: user.role
+    role = user.role.value if hasattr(user.role, "value") else user.role
+    
+    # Update: user.dinas_id, user.dinas
+    dinas_id = getattr(user, "dinas_id", None)
     dinas_rel = getattr(user, "dinas", None)
-    dinas_name = getattr(dinas_rel, "Nama", None) if dinas_rel else None
+    dinas_name = getattr(dinas_rel, "nama", None) if dinas_rel else None
     
     claims: Dict[str, Any] = {
-        "sub": user.NIP,
-        "ID": user.ID,
-        "NIP": user.NIP,
-        "Role": [str(role)],
-        "NamaLengkap": user.NamaLengkap,
-        "Email": user.Email,
-        "NoTelepon": user.NoTelepon,
-        "DinasID": dinas_id,
-        "Dinas": {"DinasID": dinas_id, "Nama": dinas_name} if dinas_id else None,
-        "isVerified": getattr(user, "isVerified", None),
-        "Lang": lang,
+        "sub": user.nip,           # Update: user.nip
+        "id": user.id,             # Update: user.id
+        "nip": user.nip,           # Update: user.nip
+        "role": [str(role)],
+        "nama_lengkap": user.nama_lengkap, # Update: user.nama_lengkap
+        "email": user.email,       # Update: user.email
+        "no_telepon": user.no_telepon, # Update: user.no_telepon
+        "dinas_id": dinas_id,
+        "dinas": {"dinas_id": dinas_id, "nama": dinas_name} if dinas_id else None,
+        "is_verified": getattr(user, "is_verified", None), # Update: is_verified
+        "lang": lang,
     }
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -440,14 +465,16 @@ def change_password(
     db: Session = Depends(get_db),
 ):
     lang = detect_lang(request)
-    user = db.query(models.User).filter(models.User.ID == current_user.ID).first()
+    # Update: User.id
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
     
     if not user:
         raise HTTPException(
             status_code=404, detail=get_message("user_not_found", lang)
         )
 
-    hashed_password = getattr(user, "Password", None)
+    # Update: user.password
+    hashed_password = getattr(user, "password", None)
     if not hashed_password:
         raise HTTPException(
             status_code=500, detail=get_message("internal_error", lang)
@@ -464,7 +491,8 @@ def change_password(
         )
 
     new_hashed_password = auth.get_password_hash(payload.new_password)
-    setattr(user, "Password", new_hashed_password)
+    # Update: user.password
+    setattr(user, "password", new_hashed_password)
     db.add(user)
     db.commit()
 
