@@ -214,7 +214,7 @@ def get_my_report_detail(
     if not r:
         raise HTTPException(404, "Report tidak ditemukan")
 
-    if r.UserID != current_user.ID:
+    if r.user_id != current_user.id:
         raise HTTPException(403, "Bukan laporan anda")
 
     return schemas.SuccessResponse[schemas.ReportResponse](
@@ -237,8 +237,8 @@ def update_report_status(
     updated_report = ReportService.update_status(
         db=db,
         report_id=report_id,
-        new_status=status_update.status, # snake_case from schema
-        updated_by_user_id=current_user.ID,
+        new_status=status_update.status.value,
+        updated_by_user_id=current_user.id,  # type: ignore
         notes=status_update.notes,
     )
     return schemas.SuccessResponse[schemas.ReportResponse](
@@ -263,15 +263,15 @@ def patch_report_status(
 
 @router.get(
     "/{report_id}/logs",
-    response_model=schemas.SuccessResponse[schemas.ReportLogResponse],
+    response_model=schemas.SuccessListResponse[schemas.ReportLogResponse],
     summary="Get Report Logs",
 )
 def get_report_logs(
     report_id: int,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
-) -> schemas.SuccessResponse[schemas.ReportLogResponse]:
+) -> schemas.SuccessListResponse[schemas.ReportLogResponse]:
     logs = ReportService.get_report_logs(db, report_id)
-    return schemas.SuccessResponse[schemas.ReportLogResponse](
+    return schemas.SuccessListResponse[schemas.ReportLogResponse](
         data=logs, message=f"Ditemukan {len(logs)} log entries"
     )

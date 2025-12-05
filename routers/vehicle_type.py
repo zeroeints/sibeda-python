@@ -16,7 +16,7 @@ router = APIRouter(prefix="/vehicle-type", tags=["VehicleType"])
 
 @router.get(
     "",
-    response_model=schemas.SuccessResponse[schemas.VehicleTypeResponse],
+    response_model=schemas.SuccessListResponse[schemas.VehicleTypeResponse],
     summary="List Vehicle Types",
 )
 def list_vehicle_types(
@@ -26,7 +26,7 @@ def list_vehicle_types(
 ):
     data = VehicleTypeService.list(db)
     lang = detect_lang(request)
-    return schemas.SuccessResponse[schemas.VehicleTypeResponse](
+    return schemas.SuccessListResponse[schemas.VehicleTypeResponse](
         data=data, message=get_message("create_success", lang)
     )
 

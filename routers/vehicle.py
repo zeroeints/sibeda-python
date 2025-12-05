@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Form, File, UploadFile
 from sqlalchemy.orm import Session
 
 import controller.auth as auth
@@ -36,15 +36,46 @@ def list_vehicles(
 @router.post(
     "",
     response_model=schemas.SuccessResponse[schemas.VehicleResponse],
-    summary="Create Vehicle",
-    description="Menambahkan kendaraan baru ke dalam sistem.",
+    summary="Create Vehicle with Photo",
+    description="Menambahkan kendaraan baru ke dalam sistem dengan foto fisik.",
 )
-def create_vehicle(
-    payload: schemas.VehicleCreate,
+async def create_vehicle(
+    nama: str = Form(...),
+    plat: str = Form(...),
+    vehicle_type_id: int = Form(...),
+    dinas_id: Optional[int] = Form(None),
+    kapasitas_mesin: Optional[int] = Form(None),
+    odometer: Optional[int] = Form(None),
+    status: Optional[str] = Form(None),
+    jenis_bensin: Optional[str] = Form(None),
+    merek: Optional[str] = Form(None),
+    asset_icon_name: Optional[str] = Form(None),
+    asset_icon_color: Optional[str] = Form(None),
+    tipe_transmisi: Optional[str] = Form(None),
+    total_fuel_bar: Optional[int] = Form(None),
+    current_fuel_bar: Optional[int] = Form(None),
+    foto_fisik: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.VehicleResponse]:
-    created = VehicleService.create(db, payload)
+    created = await VehicleService.create_with_upload(
+        db=db,
+        nama=nama,
+        plat=plat,
+        vehicle_type_id=vehicle_type_id,
+        dinas_id=dinas_id,
+        kapasitas_mesin=kapasitas_mesin,
+        odometer=odometer,
+        status=status,
+        jenis_bensin=jenis_bensin,
+        merek=merek,
+        asset_icon_name=asset_icon_name,
+        asset_icon_color=asset_icon_color,
+        tipe_transmisi=tipe_transmisi,
+        total_fuel_bar=total_fuel_bar,
+        current_fuel_bar=current_fuel_bar,
+        foto_fisik=foto_fisik,
+    )
     return schemas.SuccessResponse[schemas.VehicleResponse](
         data=created, message=get_message("vehicle_create_success", None)
     )
@@ -53,16 +84,48 @@ def create_vehicle(
 @router.put(
     "/{vehicle_id}",
     response_model=schemas.SuccessResponse[schemas.VehicleResponse],
-    summary="Update Vehicle",
-    description="Memperbarui informasi kendaraan.",
+    summary="Update Vehicle with Photo",
+    description="Memperbarui informasi kendaraan dengan foto fisik.",
 )
-def update_vehicle(
+async def update_vehicle(
     vehicle_id: int,
-    payload: schemas.VehicleCreate,
+    nama: str = Form(...),
+    plat: str = Form(...),
+    vehicle_type_id: int = Form(...),
+    dinas_id: Optional[int] = Form(None),
+    kapasitas_mesin: Optional[int] = Form(None),
+    odometer: Optional[int] = Form(None),
+    status: Optional[str] = Form(None),
+    jenis_bensin: Optional[str] = Form(None),
+    merek: Optional[str] = Form(None),
+    asset_icon_name: Optional[str] = Form(None),
+    asset_icon_color: Optional[str] = Form(None),
+    tipe_transmisi: Optional[str] = Form(None),
+    total_fuel_bar: Optional[int] = Form(None),
+    current_fuel_bar: Optional[int] = Form(None),
+    foto_fisik: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.VehicleResponse]:
-    v = VehicleService.update(db, vehicle_id, payload)
+    v = await VehicleService.update_with_upload(
+        db=db,
+        vehicle_id=vehicle_id,
+        nama=nama,
+        plat=plat,
+        vehicle_type_id=vehicle_type_id,
+        dinas_id=dinas_id,
+        kapasitas_mesin=kapasitas_mesin,
+        odometer=odometer,
+        status=status,
+        jenis_bensin=jenis_bensin,
+        merek=merek,
+        asset_icon_name=asset_icon_name,
+        asset_icon_color=asset_icon_color,
+        tipe_transmisi=tipe_transmisi,
+        total_fuel_bar=total_fuel_bar,
+        current_fuel_bar=current_fuel_bar,
+        foto_fisik=foto_fisik,
+    )
     return schemas.SuccessResponse[schemas.VehicleResponse](
         data=v, message=get_message("update_success", None)
     )
@@ -71,16 +134,48 @@ def update_vehicle(
 @router.patch(
     "/{vehicle_id}",
     response_model=schemas.SuccessResponse[schemas.VehicleResponse],
-    summary="Patch Vehicle",
-    description="Memperbarui informasi kendaraan secara parsial.",
+    summary="Patch Vehicle with Photo",
+    description="Memperbarui informasi kendaraan secara parsial termasuk foto fisik.",
 )
-def patch_vehicle(
+async def patch_vehicle(
     vehicle_id: int,
-    payload: schemas.VehicleUpdate,
+    nama: Optional[str] = Form(None),
+    plat: Optional[str] = Form(None),
+    vehicle_type_id: Optional[int] = Form(None),
+    dinas_id: Optional[int] = Form(None),
+    kapasitas_mesin: Optional[int] = Form(None),
+    odometer: Optional[int] = Form(None),
+    status: Optional[str] = Form(None),
+    jenis_bensin: Optional[str] = Form(None),
+    merek: Optional[str] = Form(None),
+    asset_icon_name: Optional[str] = Form(None),
+    asset_icon_color: Optional[str] = Form(None),
+    tipe_transmisi: Optional[str] = Form(None),
+    total_fuel_bar: Optional[int] = Form(None),
+    current_fuel_bar: Optional[int] = Form(None),
+    foto_fisik: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.VehicleResponse]:
-    v = VehicleService.update(db, vehicle_id, payload)
+    v = await VehicleService.update_with_upload(
+        db=db,
+        vehicle_id=vehicle_id,
+        nama=nama,
+        plat=plat,
+        vehicle_type_id=vehicle_type_id,
+        dinas_id=dinas_id,
+        kapasitas_mesin=kapasitas_mesin,
+        odometer=odometer,
+        status=status,
+        jenis_bensin=jenis_bensin,
+        merek=merek,
+        asset_icon_name=asset_icon_name,
+        asset_icon_color=asset_icon_color,
+        tipe_transmisi=tipe_transmisi,
+        total_fuel_bar=total_fuel_bar,
+        current_fuel_bar=current_fuel_bar,
+        foto_fisik=foto_fisik,
+    )
     return schemas.SuccessResponse[schemas.VehicleResponse](
         data=v, message=get_message("update_success", None)
     )
@@ -112,7 +207,7 @@ def get_my_vehicles(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ):
-    vehicles = VehicleService.get_my_vehicles(db, current_user.ID)
+    vehicles = VehicleService.get_my_vehicles(db, current_user.id)
     return schemas.SuccessResponse[List[schemas.MyVehicleResponse]](
         data=vehicles, message=f"Ditemukan {len(vehicles)} kendaraan milik anda"
     )
@@ -146,7 +241,7 @@ def get_my_vehicle_detail(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.VehicleDetailResponse]:
-    vehicle_detail = VehicleService.get_vehicle_detail(db, vehicle_id, current_user.ID)
+    vehicle_detail = VehicleService.get_vehicle_detail(db, vehicle_id, current_user.id)
     return schemas.SuccessResponse[schemas.VehicleDetailResponse](
         data=vehicle_detail, message="Detail kendaraan berhasil ditemukan"
     )

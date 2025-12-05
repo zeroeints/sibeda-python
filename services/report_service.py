@@ -231,11 +231,69 @@ class ReportService:
             raise HTTPException(500, f"Failed: {str(e)}")
 
     @staticmethod
-    def update_status(db: Session, report_id: int, new_status: models.ReportStatusEnum, updated_by_user_id: int, notes: str | None) -> models.Report:
+    async def update_with_upload(
+        db: Session, 
+        report_id: int,
+        kode_unik: Optional[str] = None,
+        user_id: Optional[int] = None, 
+        vehicle_id: Optional[int] = None, 
+        amount_rupiah: Optional[float] = None, 
+        amount_liter: Optional[float] = None,
+        description: Optional[str] = None, 
+        latitude: Optional[float] = None, 
+        longitude: Optional[float] = None,
+        odometer: Optional[int] = None, 
+        vehicle_photo: Optional[UploadFile] = None,
+        odometer_photo: Optional[UploadFile] = None, 
+        invoice_photo: Optional[UploadFile] = None,
+        mypertamina_photo: Optional[UploadFile] = None
+    ) -> models.Report:
+        
+        report = db.query(models.Report).filter(models.Report.id == report_id).first()
+        if not report:
+            raise HTTPException(404, "Report tidak ditemukan")
+        
+        # Upload foto baru jika ada
+        if vehicle_photo and vehicle_photo.filename:
+            report.vehicle_physical_photo_path = await save_report_photo(vehicle_photo, "vehicle")
+        if odometer_photo and odometer_photo.filename:
+            report.odometer_photo_path = await save_report_photo(odometer_photo, "odometer")
+        if invoice_photo and invoice_photo.filename:
+            report.invoice_photo_path = await save_report_photo(invoice_photo, "invoice")
+        if mypertamina_photo and mypertamina_photo.filename:
+            report.my_pertamina_photo_path = await save_report_photo(mypertamina_photo, "mypertamina")
+        
+        # Update field lainnya jika ada nilai
+        if kode_unik is not None:
+            report.kode_unik = kode_unik
+        if user_id is not None:
+            report.user_id = user_id
+        if vehicle_id is not None:
+            report.vehicle_id = vehicle_id
+        if amount_rupiah is not None:
+            report.amount_rupiah = amount_rupiah
+        if amount_liter is not None:
+            report.amount_liter = amount_liter
+        if description is not None:
+            report.description = description
+        if latitude is not None:
+            report.latitude = latitude
+        if longitude is not None:
+            report.longitude = longitude
+        if odometer is not None:
+            report.odometer = odometer
+        
+        db.commit()
+        return ReportService.get(db, report.id)  # type: ignore
+
+    @staticmethod
+    def update_status(db: Session, report_id: int, new_status: str, updated_by_user_id: int, notes: str | None) -> models.Report:
         r = db.query(models.Report).filter(models.Report.id == report_id).first()
         if not r: raise HTTPException(404, "Report not found")
-        r.status = new_status
-        ReportService._create_report_log(db, r.id, new_status, updated_by_user_id, notes)
+        # Convert string to enum
+        status_enum = models.ReportStatusEnum(new_status)
+        r.status = status_enum
+        ReportService._create_report_log(db, r.id, status_enum, updated_by_user_id, notes)
         db.commit()
         return ReportService.get(db, r.id) # type: ignore
 

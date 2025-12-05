@@ -1,10 +1,11 @@
 from __future__ import annotations
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session, joinedload
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import func
 import model.models as models
-from schemas.schemas import VehicleCreate, VehicleUpdate
+from schemas.schemas import VehicleCreate, VehicleUpdate, VehicleStatusEnum
+from utils.file_upload import save_vehicle_photo, delete_file
 
 class VehicleService:
     @staticmethod
@@ -90,6 +91,138 @@ class VehicleService:
         
         db.commit()
         return VehicleService._get_base_query(db).filter(models.Vehicle.id == v.id).first() # type: ignore
+
+    @staticmethod
+    async def create_with_upload(
+        db: Session,
+        nama: str,
+        plat: str,
+        vehicle_type_id: int,
+        dinas_id: Optional[int] = None,
+        kapasitas_mesin: Optional[int] = None,
+        odometer: Optional[int] = None,
+        status: Optional[str] = None,
+        jenis_bensin: Optional[str] = None,
+        merek: Optional[str] = None,
+        asset_icon_name: Optional[str] = None,
+        asset_icon_color: Optional[str] = None,
+        tipe_transmisi: Optional[str] = None,
+        total_fuel_bar: Optional[int] = None,
+        current_fuel_bar: Optional[int] = None,
+        foto_fisik: Optional[UploadFile] = None,
+    ) -> models.Vehicle:
+        # Validasi
+        if not db.query(models.VehicleType).filter(models.VehicleType.id == vehicle_type_id).first():
+            raise HTTPException(400, "VehicleTypeID tidak ditemukan")
+        
+        if db.query(models.Vehicle).filter(models.Vehicle.plat == plat).first():
+            raise HTTPException(400, "Plat sudah terdaftar")
+        
+        if dinas_id and not db.query(models.Dinas).filter(models.Dinas.id == dinas_id).first():
+            raise HTTPException(400, "DinasID tidak ditemukan")
+
+        # Upload foto jika ada
+        foto_path = await save_vehicle_photo(foto_fisik)
+
+        # Parse status - harus valid enum, default ke Active jika tidak valid
+        vehicle_status = models.VehicleStatusEnum.active
+        if status:
+            try:
+                vehicle_status = VehicleStatusEnum(status)
+            except ValueError:
+                # Jika status tidak valid, gunakan default Active
+                vehicle_status = models.VehicleStatusEnum.active
+
+        v = models.Vehicle(
+            nama=nama,
+            plat=plat,
+            vehicle_type_id=vehicle_type_id,
+            dinas_id=dinas_id if dinas_id and dinas_id > 0 else None,
+            kapasitas_mesin=kapasitas_mesin,
+            odometer=odometer,
+            jenis_bensin=jenis_bensin,
+            merek=merek,
+            foto_fisik=foto_path,
+            asset_icon_name=asset_icon_name,
+            asset_icon_color=asset_icon_color,
+            tipe_transmisi=tipe_transmisi,
+            total_fuel_bar=total_fuel_bar,
+            current_fuel_bar=current_fuel_bar,
+            status=vehicle_status
+        )
+        
+        db.add(v)
+        db.commit()
+        return VehicleService._get_base_query(db).filter(models.Vehicle.id == v.id).first()  # type: ignore
+
+    @staticmethod
+    async def update_with_upload(
+        db: Session,
+        vehicle_id: int,
+        nama: Optional[str] = None,
+        plat: Optional[str] = None,
+        vehicle_type_id: Optional[int] = None,
+        dinas_id: Optional[int] = None,
+        kapasitas_mesin: Optional[int] = None,
+        odometer: Optional[int] = None,
+        status: Optional[str] = None,
+        jenis_bensin: Optional[str] = None,
+        merek: Optional[str] = None,
+        asset_icon_name: Optional[str] = None,
+        asset_icon_color: Optional[str] = None,
+        tipe_transmisi: Optional[str] = None,
+        total_fuel_bar: Optional[int] = None,
+        current_fuel_bar: Optional[int] = None,
+        foto_fisik: Optional[UploadFile] = None,
+    ) -> models.Vehicle:
+        v = db.query(models.Vehicle).filter(models.Vehicle.id == vehicle_id).first()
+        if not v:
+            raise HTTPException(404, "Vehicle not found")
+
+        # Update foto jika ada upload baru
+        if foto_fisik and foto_fisik.filename:
+            # Hapus foto lama
+            if v.foto_fisik:
+                delete_file(v.foto_fisik)
+            # Upload foto baru
+            v.foto_fisik = await save_vehicle_photo(foto_fisik)
+
+        # Update field lainnya jika ada nilai
+        if nama is not None:
+            v.nama = nama
+        if plat is not None:
+            v.plat = plat
+        if vehicle_type_id is not None:
+            v.vehicle_type_id = vehicle_type_id
+        if dinas_id is not None:
+            v.dinas_id = dinas_id
+        if kapasitas_mesin is not None:
+            v.kapasitas_mesin = kapasitas_mesin
+        if odometer is not None:
+            v.odometer = odometer
+        if status is not None:
+            try:
+                v.status = VehicleStatusEnum(status)
+            except ValueError:
+                # Jika status tidak valid, jangan ubah (tetap pakai yang lama)
+                pass
+        if jenis_bensin is not None:
+            v.jenis_bensin = jenis_bensin
+        if merek is not None:
+            v.merek = merek
+        if asset_icon_name is not None:
+            v.asset_icon_name = asset_icon_name
+        if asset_icon_color is not None:
+            v.asset_icon_color = asset_icon_color
+        if tipe_transmisi is not None:
+            v.tipe_transmisi = tipe_transmisi
+        if total_fuel_bar is not None:
+            v.total_fuel_bar = total_fuel_bar
+        if current_fuel_bar is not None:
+            v.current_fuel_bar = current_fuel_bar
+
+        db.commit()
+        return VehicleService._get_base_query(db).filter(models.Vehicle.id == v.id).first()  # type: ignore
 
     @staticmethod
     def delete(db: Session, vehicle_id: int) -> None:
