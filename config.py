@@ -4,7 +4,7 @@ from functools import lru_cache
 from dotenv import load_dotenv
 
 load_dotenv()
-from functools import lru_cache
+
 
 class Settings(BaseModel):
     app_name: str
@@ -25,12 +25,24 @@ class Settings(BaseModel):
 
     @staticmethod
     def load() -> "Settings":
+        
+        secret_key = os.getenv("SECRET_KEY")
+        environment = os.getenv("ENVIRONMENT", "development")
+        
+        if not secret_key:
+            if environment == "production":
+                raise ValueError("SECRET_KEY environment variable is required in production!")
+            
+            import warnings
+            warnings.warn("SECRET_KEY not set! Using insecure default. Set SECRET_KEY in .env for production.")
+            secret_key = "dev_insecure_key_not_for_production"
+        
         return Settings(
             app_name=os.getenv("APP_NAME", "SIBEDA API"),
-            debug=os.getenv("DEBUG", "true").lower() == "true",
-            environment=os.getenv("ENVIRONMENT", "development"),
+            debug=os.getenv("DEBUG", "false").lower() == "true",
+            environment=environment,
             database_url=os.getenv("DATABASE_URL", "mysql+pymysql://root:@localhost:3306/sibeda_db"),
-            secret_key=os.getenv("SECRET_KEY", "dev_insecure_change_me"),
+            secret_key=secret_key,
             access_token_expire_minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
             request_id_header=os.getenv("REQUEST_ID_HEADER", "X-Request-ID"),

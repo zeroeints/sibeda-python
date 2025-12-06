@@ -1,498 +1,282 @@
-# sibeda-python
+# SIBEDA API
 
-# SIBEDA API Backend (FastAPI)
+**Sistem Informasi Bensin Daerah** - Backend API menggunakan FastAPI untuk manajemen pengajuan dan pelaporan penggunaan BBM kendaraan dinas.
 
-## Autentikasi
+## 🚀 Tech Stack
 
-Ada dua endpoint otentikasi:
+- **Framework**: FastAPI
+- **Database**: MySQL (PyMySQL + SQLAlchemy ORM)
+- **Authentication**: JWT (python-jose)
+- **Password Hashing**: Passlib + Bcrypt
+- **Validation**: Pydantic v2
+- **Testing**: Pytest + Faker
 
-1. `POST /token` (standar OAuth2 Password)
+## 📋 Fitur Utama
 
-   - Body: `application/x-www-form-urlencoded`
-     - `username=<NIP>`
-     - `password=<Password>`
-   - Response:
-     ```json
-     { "access_token": "<jwt>", "token_type": "bearer" }
-     ```
-   - Digunakan Swagger untuk otomatis menyuntik header `Authorization`.
+- ✅ Autentikasi JWT (Login, Register, Forgot Password, OTP)
+- ✅ Manajemen User dengan Role (Admin, Kepala Dinas, PIC)
+- ✅ Manajemen Kendaraan Dinas
+- ✅ Pengajuan Dana BBM (Submission)
+- ✅ Pelaporan Penggunaan BBM (Report) dengan Upload Foto
+- ✅ Wallet/Saldo User
+- ✅ Statistik Dashboard
+- ✅ QR Code Assignment
 
-2. `POST /login` (wrapped response)
-   - Body sama seperti `/token`
-   - Response dibungkus:
-     ```json
-     {
-     	"success": true,
-     	"data": { "access_token": "<jwt>", "token_type": "bearer" },
-     	"message": null
-     }
-     ```
-   - Cocok untuk frontend yang ingin format konsisten.
+## 📁 Struktur Project
 
-Untuk Swagger, gunakan tombol Authorize dan masukkan kredensial; sistem akan memanggil `/token` dan menyimpan header Authorization.
+```
+sibeda-python/
+├── main.py                 # Entry point aplikasi
+├── config.py               # Konfigurasi environment
+├── middleware.py           # Request logging & language middleware
+├── requirements.txt        # Dependencies
+├── .env                    # Environment variables
+├── assets/                 # Upload files (foto kendaraan, report)
+│   ├── reports/
+│   └── vehicles/
+├── controller/
+│   └── auth.py             # JWT & authentication logic
+├── database/
+│   └── database.py         # Database connection
+├── model/
+│   └── models.py           # SQLAlchemy models
+├── routers/
+│   ├── auth.py             # Auth endpoints
+│   ├── users.py            # User management
+│   ├── vehicle.py          # Vehicle CRUD
+│   ├── vehicle_type.py     # Vehicle type CRUD
+│   ├── submission.py       # Submission CRUD
+│   ├── report.py           # Report CRUD with photo upload
+│   ├── wallet.py           # Wallet management
+│   ├── dinas.py            # Dinas CRUD
+│   ├── stat.py             # Statistics
+│   ├── qr.py               # QR code assignment
+│   └── seeder.py           # Database seeder
+├── schemas/
+│   └── schemas.py          # Pydantic schemas
+├── services/
+│   ├── user_service.py
+│   ├── vehicle_service.py
+│   ├── submission_service.py
+│   ├── report_service.py
+│   ├── wallet_service.py
+│   ├── dinas_service.py
+│   └── stat_service.py
+├── utils/
+│   ├── file_upload.py      # File upload helper
+│   ├── mailer.py           # Email sender
+│   ├── otp.py              # OTP generator
+│   └── responses.py        # Response helpers
+├── i18n/
+│   └── messages.py         # Internationalization
+└── tests/
+    ├── conftest.py
+    ├── test_user_auth.py
+    └── test_vehicle.py
+```
 
-## Endpoint Profil Cepat (Opsional)
+## ⚙️ Instalasi
 
-Tambahkan sendiri `/auth/me` bila ingin (belum dibuat) untuk menampilkan user dari token.
-
-## Verifikasi Token
-
-`GET /auth/verify`  
-Parameter opsional: `check_user=true` untuk memastikan user masih ada di DB.
-
-Contoh: `GET /auth/verify?check_user=true`
-
-Response struktur dijelaskan di bawah.
-
-## Contoh Curl
+### 1. Clone Repository
 
 ```bash
-# Mendapatkan token standar
-curl -X POST http://127.0.0.1:8000/token -H "Content-Type: application/x-www-form-urlencoded" -d "username=123&password=secretpass"
-
-# Menggunakan token
-curl http://127.0.0.1:8000/users/ -H "Authorization: Bearer <TOKEN>"
-
-# Verifikasi token
-curl http://127.0.0.1:8000/auth/verify?check_user=true -H "Authorization: Bearer <TOKEN>"
+git clone https://github.com/zeroeints/sibeda-python.git
+cd sibeda-python
 ```
 
-## Endpoint Verifikasi Token
-
-Untuk membantu debugging error `401 Tidak bisa validasi token`, ditambahkan endpoint:
-
-`GET /auth/verify`
-
-Header yang dibutuhkan:
-
-```
-Authorization: Bearer <access_token>
-```
-
-### Contoh Response (valid)
-
-```json
-{
-	"success": true,
-	"data": {
-		"valid": true,
-		"claims": {
-			"sub": "123",
-			"ID": 3,
-			"NIP": "123",
-			"Role": "admin",
-			"NamaLengkap": "Admin User",
-			"Email": "admin@example.com",
-			"NoTelepon": "0800",
-			"DinasID": 1,
-			"exp": 1759686828
-		},
-		"reason": null
-	},
-	"message": null
-}
-```
-
-### Contoh Response (invalid)
-
-```json
-{
-	"success": true,
-	"data": {
-		"valid": false,
-		"claims": null,
-		"reason": "Signature has expired"
-	},
-	"message": null
-}
-```
-
-Field `reason` menjelaskan kenapa token tidak valid (expired, salah signature, format salah, dsb).
-
-## Penyebab Umum 401
-
-1. Header tidak benar: harus `Authorization: Bearer <token>`
-2. `SECRET_KEY` berubah setelah login → token lama invalid
-3. User terkait token sudah dihapus / NIP berubah
-4. Token expired (`exp` sudah lewat)
-5. Token terpotong saat copy-paste (kurang bagian signature / titik)
-
-## Langkah Debug Singkat
-
-1. Panggil `/auth/verify` dengan token → lihat `valid` & `reason`
-2. Jika valid: cek user masih ada di DB sesuai `sub`
-3. Jika `reason` expired → login ulang
-4. Jika signature invalid → pastikan server pakai SECRET_KEY yang sama dengan saat generate
-
-## Catatan
-
-Endpoint `/auth/verify` sebaiknya hanya diaktifkan di environment development. Bila perlu, lindungi dengan role atau hapus sebelum production.
-
----
-
-## Endpoint Submission Monthly Report
-
-Untuk mendapatkan laporan pengajuan penggunaan dana per bulan, tersedia 3 endpoint baru:
-
-### 1. GET `/submission/monthly/summary`
-
-Mendapatkan ringkasan statistik pengajuan per bulan (total, status, dana)
-
-### 2. GET `/submission/monthly/details`
-
-Mendapatkan detail lengkap setiap pengajuan per bulan dengan informasi creator, receiver, dan vehicle
-
-### 3. GET `/submission/monthly/report`
-
-Mendapatkan laporan lengkap (ringkasan + detail) dalam satu request
-
-**Dokumentasi lengkap:** Lihat file [docs/SUBMISSION_MONTHLY_API.md](docs/SUBMISSION_MONTHLY_API.md)
-
-**Testing guide:** Lihat file [docs/TESTING_SUBMISSION_MONTHLY.md](docs/TESTING_SUBMISSION_MONTHLY.md)
-
-**Query Parameters:**
-
-- `month`: Integer 1-12 (bulan yang ingin ditampilkan)
-- `year`: Integer 2000-2100 (tahun yang ingin ditampilkan)
-
-**Authentication:** Bearer token required untuk semua endpoint
-
-**Contoh:**
+### 2. Buat Virtual Environment
 
 ```bash
-GET /submission/monthly/report?month=11&year=2025
-Authorization: Bearer <token>
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# Linux/Mac
+source .venv/bin/activate
 ```
 
----
-
-## Endpoint Get All Submissions
-
-Untuk mendapatkan semua pengajuan dengan berbagai opsi filtering dan pagination:
-
-### 1. GET `/submission/`
-
-Mendapatkan semua submission dengan data basic (ID, KodeUnik, Status, dll)
-
-### 2. GET `/submission/all/detailed`
-
-Mendapatkan semua submission dengan **detail lengkap** (nama creator, receiver, vehicle) dan **pagination info**
-
-**Dokumentasi lengkap:** Lihat file [docs/GET_ALL_SUBMISSIONS_API.md](docs/GET_ALL_SUBMISSIONS_API.md)
-
-**Query Parameters:**
-
-- `creator_id`: Filter berdasarkan ID pembuat (optional)
-- `receiver_id`: Filter berdasarkan ID penerima (optional)
-- `vehicle_id`: Filter berdasarkan ID kendaraan (optional)
-- `status`: Filter berdasarkan status - Pending, Accepted, Rejected (optional)
-- `limit`: Batasi jumlah data (default 100 untuk detailed, max 1000)
-- `offset`: Skip sejumlah data untuk pagination (default 0)
-
-**Contoh:**
+### 3. Install Dependencies
 
 ```bash
-# Get all dengan detail lengkap
-GET /submission/all/detailed?limit=50&offset=0
-
-# Filter by status
-GET /submission/all/detailed?status=Pending
-
-# Multiple filters
-GET /submission/all/detailed?creator_id=10&status=Pending&limit=20
+pip install -r requirements.txt
 ```
 
----
+### 4. Konfigurasi Environment
 
-## Endpoint Get Users with Details
+Buat file `.env` di root project:
 
-Untuk mendapatkan pengguna dengan detail lengkap termasuk wallet, dinas, dan submission statistics:
+```env
+APP_NAME=SIBEDA API
+DEBUG=true
+ENVIRONMENT=development
 
-### GET `/users/detailed/search`
+DATABASE_URL=mysql+pymysql://root:@localhost:3306/sibeda_db
 
-Mendapatkan semua pengguna dengan **detail lengkap** termasuk:
+SECRET_KEY=your-super-secret-key-change-this
+ACCESS_TOKEN_EXPIRE_MINUTES=60
 
-- ✅ Data user lengkap (NIP, Nama, Email, Role, dll)
-- ✅ **Wallet info** (ID, Saldo, Type)
-- ✅ **Dinas info** (ID, Nama)
-- ✅ Total submission yang dibuat dan diterima
-- ✅ **Fitur pencarian** (search by NIP, Nama, Email)
-- ✅ **Multiple filters** (role, dinas, verification status)
-- ✅ **Pagination** dengan info lengkap
+LOG_LEVEL=INFO
 
-**Dokumentasi lengkap:** Lihat file [docs/USER_DETAILED_SEARCH_API.md](docs/USER_DETAILED_SEARCH_API.md)
+# SMTP (Optional - untuk forgot password)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_TLS=true
+MAIL_FROM=noreply@sibeda.com
+MAIL_FROM_NAME=SIBEDA
+```
 
-**Query Parameters:**
+### 5. Buat Database
 
-- `search`: Cari berdasarkan NIP, Nama, atau Email (optional, case-insensitive)
-- `role`: Filter berdasarkan role - admin, kepala_dinas, pic (optional)
-- `dinas_id`: Filter berdasarkan ID dinas (optional)
-- `is_verified`: Filter berdasarkan status verifikasi - true/false (optional)
-- `limit`: Batasi jumlah data (default 100, max 1000)
-- `offset`: Skip sejumlah data untuk pagination (default 0)
+```sql
+CREATE DATABASE sibeda_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
 
-**Contoh:**
+### 6. Jalankan Server
 
 ```bash
-# Search by name
-GET /users/detailed/search?search=John
-
-# Filter by role
-GET /users/detailed/search?role=pic
-
-# Filter by dinas
-GET /users/detailed/search?dinas_id=5
-
-# Multiple filters
-GET /users/detailed/search?role=pic&is_verified=true&dinas_id=5
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Response includes:**
+Server akan berjalan di `http://localhost:8000`
 
-- User data (NIP, Nama, Email, Role, Status Verifikasi)
-- Wallet balance & type
-- Dinas name
-- Submission statistics (created & received)
-- Pagination info (total, has_more, dll)
+## 📚 API Documentation
 
----
+Setelah server berjalan, akses:
 
-## Endpoint Get User Balance
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
 
-Untuk mendapatkan saldo wallet user beserta informasi lengkap:
+## 🔐 Autentikasi
 
-### GET `/users/balance/{user_id}`
-
-Mendapatkan saldo wallet user dengan **detail lengkap** termasuk:
-
-- ✅ User info (NIP, Nama, Email, Role)
-- ✅ **Saldo wallet** (jumlah dana tersedia)
-- ✅ **Wallet type** (jenis wallet: Bensin, Non-Bensin, dll)
-- ✅ **Dinas info** (ID dan Nama dinas)
-
-**Dokumentasi lengkap:** Lihat file [docs/USER_BALANCE_API.md](docs/USER_BALANCE_API.md)
-
-**Path Parameters:**
-
-- `user_id`: ID user yang ingin dicek saldonya (required)
-
-**Authentication:** Bearer token required
-
-**Contoh:**
+### Login
 
 ```bash
-# Get balance untuk user ID 1
-GET /users/balance/1
-Authorization: Bearer <token>
+# OAuth2 Password Flow (untuk Swagger)
+POST /token
+Content-Type: application/x-www-form-urlencoded
+username=<NIP>&password=<PASSWORD>
 
-# Get balance untuk user ID 5
-GET /users/balance/5
-Authorization: Bearer <token>
+# JSON Login (untuk Frontend)
+POST /login
+Content-Type: application/x-www-form-urlencoded
+username=<NIP>&password=<PASSWORD>
 ```
 
-**Response example:**
-
-```json
-{
-	"success": true,
-	"data": {
-		"user_id": 1,
-		"nip": "123456789012345678",
-		"nama_lengkap": "John Doe",
-		"email": "john.doe@example.com",
-		"role": "pic",
-		"dinas_id": 5,
-		"dinas_nama": "Dinas Kesehatan",
-		"wallet_id": 10,
-		"saldo": 5000000.0,
-		"wallet_type_id": 1,
-		"wallet_type_nama": "Bensin"
-	},
-	"message": "Berhasil mendapatkan saldo user"
-}
-```
-
-**Use Cases:**
-
-- Cek saldo sebelum membuat submission baru
-- Monitoring saldo user untuk admin/kepala dinas
-- Verifikasi dana tersedia untuk pengajuan
-- Self-check balance untuk user
-
----
-
-## Endpoint Get My Vehicles
-
-Untuk mendapatkan kendaraan yang pernah digunakan user beserta detail penggunaan dan riwayat pengisian bensin:
-
-### 1. GET `/vehicle/my/vehicles`
-
-Mendapatkan semua kendaraan yang pernah digunakan oleh user dengan **statistik lengkap**:
-
-- ✅ Data kendaraan lengkap (Nama, Plat, Merek, Odometer, dll)
-- ✅ **Tipe kendaraan** (Mobil Dinas, Motor Dinas, dll)
-- ✅ **Total submission** menggunakan kendaraan ini
-- ✅ **Total report** pengisian bensin
-- ✅ **Total bensin** (liter) yang sudah diisi
-- ✅ **Total biaya** bensin (Rupiah)
-- ✅ **Info pengisian terakhir** (tanggal, liter, rupiah, odometer)
-
-### 2. GET `/vehicle/my/vehicles/{vehicle_id}`
-
-Mendapatkan **detail lengkap** kendaraan termasuk:
-
-- ✅ Semua info kendaraan dan statistik
-- ✅ **Riwayat 10 pengisian bensin terakhir**
-  - Tanggal & waktu
-  - Jumlah liter & rupiah
-  - Odometer saat pengisian
-  - Lokasi (latitude, longitude)
-  - Deskripsi
-
-**Dokumentasi lengkap:** Lihat file [docs/MY_VEHICLES_API.md](docs/MY_VEHICLES_API.md)
-
-**Authentication:** Bearer token required
-
-**Contoh:**
+### Menggunakan Token
 
 ```bash
-# Get all my vehicles
-GET /vehicle/my/vehicles
-Authorization: Bearer <token>
-
-# Get detail specific vehicle with refuel history
-GET /vehicle/my/vehicles/1
-Authorization: Bearer <token>
+curl http://localhost:8000/users/ \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
-**Response example (list):**
+## 📡 API Endpoints
 
-```json
-{
-	"success": true,
-	"data": [
-		{
-			"ID": 1,
-			"Nama": "Toyota Avanza 2020",
-			"Plat": "B 1234 ABC",
-			"Merek": "Toyota",
-			"VehicleTypeName": "Mobil Dinas",
-			"TotalFuelLiters": 450.5,
-			"TotalRupiahSpent": 4500000.0,
-			"LastRefuelDate": "2025-11-03T14:30:00+07:00",
-			"LastRefuelLiters": 25.5,
-			"TotalSubmissions": 15,
-			"TotalReports": 23
-		}
-	],
-	"message": "Ditemukan 1 kendaraan"
-}
-```
+### Auth
 
-**Use Cases:**
+| Method | Endpoint                | Deskripsi                |
+| ------ | ----------------------- | ------------------------ |
+| POST   | `/token`                | Login (OAuth2)           |
+| POST   | `/login`                | Login (wrapped response) |
+| POST   | `/auth/register`        | Register user baru       |
+| GET    | `/auth/verify`          | Verifikasi token         |
+| POST   | `/auth/forgot-password` | Request reset password   |
+| POST   | `/auth/verify-otp`      | Verifikasi OTP           |
+| POST   | `/auth/reset-password`  | Reset password           |
+| PUT    | `/auth/change-password` | Ganti password           |
 
-- Dashboard kendaraan yang pernah digunakan
-- Monitoring konsumsi BBM per kendaraan
-- Tracking pengisian bensin terakhir
-- Analisis efisiensi kendaraan (liter/km)
-- Validasi sebelum membuat submission baru
+### Users
 
----
+| Method | Endpoint                 | Deskripsi                  |
+| ------ | ------------------------ | -------------------------- |
+| GET    | `/users/`                | List semua user            |
+| GET    | `/users/{id}`            | Detail user                |
+| POST   | `/users/`                | Create user                |
+| PUT    | `/users/{id}`            | Update user                |
+| DELETE | `/users/{id}`            | Delete user                |
+| GET    | `/users/balance/{id}`    | Get user balance           |
+| GET    | `/users/detailed/search` | Search users dengan detail |
 
-## Endpoint Get My Reports
+### Vehicles
 
-Untuk mendapatkan laporan (report) pengisian bensin user beserta detail lengkap:
+| Method | Endpoint                    | Deskripsi                     |
+| ------ | --------------------------- | ----------------------------- |
+| GET    | `/vehicle/`                 | List kendaraan                |
+| POST   | `/vehicle/`                 | Create kendaraan (with photo) |
+| PUT    | `/vehicle/{id}`             | Update kendaraan (with photo) |
+| PATCH  | `/vehicle/{id}`             | Partial update (with photo)   |
+| DELETE | `/vehicle/{id}`             | Delete kendaraan              |
+| GET    | `/vehicle/my/vehicles`      | Kendaraan user                |
+| GET    | `/vehicle/my/vehicles/{id}` | Detail kendaraan user         |
+| GET    | `/vehicle/dinas/{id}`       | Kendaraan per dinas           |
+| POST   | `/vehicle/{id}/assign`      | Assign user ke kendaraan      |
+| POST   | `/vehicle/{id}/unassign`    | Unassign user                 |
 
-### 1. GET `/report/my/reports`
+### Submissions
 
-Mendapatkan semua report/pelaporan pengisian bensin yang dibuat oleh user dengan **detail lengkap**:
+| Method | Endpoint                      | Deskripsi         |
+| ------ | ----------------------------- | ----------------- |
+| GET    | `/submission/`                | List pengajuan    |
+| POST   | `/submission/`                | Create pengajuan  |
+| GET    | `/submission/{id}`            | Detail pengajuan  |
+| PUT    | `/submission/{id}`            | Update pengajuan  |
+| DELETE | `/submission/{id}`            | Delete pengajuan  |
+| GET    | `/submission/my/submissions`  | Pengajuan user    |
+| GET    | `/submission/monthly/summary` | Ringkasan bulanan |
+| GET    | `/submission/monthly/details` | Detail bulanan    |
 
-- ✅ Info report (KodeUnik, Jumlah Liter, Rupiah, Waktu, Lokasi)
-- ✅ **Info kendaraan** (Nama, Plat, Tipe)
-- ✅ **Info submission terkait** (Status, Total Cash Advance)
-- ✅ **Foto bukti** (Kendaraan, Odometer, Invoice, MyPertamina)
-- ✅ **Filter by vehicle** (opsional)
-- ✅ **Pagination** dengan info lengkap
+### Reports
 
-### 2. GET `/report/my/reports/{report_id}`
+| Method | Endpoint              | Deskripsi                    |
+| ------ | --------------------- | ---------------------------- |
+| GET    | `/report/`            | List laporan                 |
+| POST   | `/report/`            | Create laporan (with photos) |
+| PATCH  | `/report/{id}`        | Update laporan (with photos) |
+| DELETE | `/report/{id}`        | Delete laporan               |
+| GET    | `/report/my/reports`  | Laporan user                 |
+| PUT    | `/report/{id}/status` | Update status laporan        |
+| GET    | `/report/{id}/logs`   | Log perubahan status         |
 
-Mendapatkan **detail lengkap** sebuah report termasuk:
+### Others
 
-- ✅ Info user pelapor (Nama, NIP)
-- ✅ Info kendaraan lengkap (Nama, Plat, Merek, Kapasitas, Jenis Bensin, dll)
-- ✅ Detail pengisian (Liter, Rupiah, Odometer, Lokasi GPS)
-- ✅ Semua foto bukti (4 jenis foto)
-- ✅ Info submission terkait lengkap (Status, Total, Creator, Receiver)
+| Method | Endpoint         | Deskripsi              |
+| ------ | ---------------- | ---------------------- |
+| GET    | `/dinas/`        | List dinas             |
+| GET    | `/vehicle-type/` | List tipe kendaraan    |
+| GET    | `/wallet/`       | List wallet            |
+| GET    | `/stat/pic`      | Statistik PIC          |
+| GET    | `/stat/kadis`    | Statistik Kepala Dinas |
+| GET    | `/stat/admin`    | Statistik Admin        |
 
-**Dokumentasi lengkap:** Lihat file [docs/MY_REPORTS_API.md](docs/MY_REPORTS_API.md)
-
-**Query Parameters (list):**
-
-- `vehicle_id`: Filter berdasarkan ID kendaraan (optional)
-- `limit`: Batasi jumlah data (default 100, max 1000)
-- `offset`: Skip sejumlah data untuk pagination (default 0)
-
-**Authentication:** Bearer token required
-
-**Contoh:**
+## 🧪 Testing
 
 ```bash
-# Get all my reports
-GET /report/my/reports?limit=50&offset=0
-Authorization: Bearer <token>
+# Run all tests
+pytest
 
-# Filter by vehicle
-GET /report/my/reports?vehicle_id=1
-Authorization: Bearer <token>
+# Run specific test file
+pytest tests/test_user_auth.py
 
-# Get detail specific report
-GET /report/my/reports/101
-Authorization: Bearer <token>
+# Run with verbose
+pytest -v
 ```
 
-**Response example (list):**
+## 🔧 Database Seeding
 
-```json
-{
-	"success": true,
-	"data": [
-		{
-			"ID": 101,
-			"KodeUnik": "SUB-2025-001",
-			"VehicleName": "Toyota Avanza 2020",
-			"VehiclePlat": "B 1234 ABC",
-			"VehicleType": "Mobil Dinas",
-			"AmountRupiah": 250000.0,
-			"AmountLiter": 25.5,
-			"Timestamp": "2025-11-03T14:30:00+07:00",
-			"Odometer": 45000,
-			"SubmissionStatus": "Accepted",
-			"SubmissionTotal": 500000.0
-		}
-	],
-	"message": "Ditemukan 1 dari 23 report",
-	"pagination": {
-		"total": 23,
-		"limit": 50,
-		"offset": 0,
-		"returned": 1,
-		"has_more": true
-	}
-}
+```bash
+# Via endpoint (development only)
+POST /seeder/seed
+
+# Via script
+python db_seeder.py
 ```
 
-**Use Cases:**
+## 📝 Lisensi
 
-- Dashboard laporan pengisian bensin user
-- Tracking pengeluaran BBM per kendaraan
-- Verifikasi laporan dengan foto bukti
-- Analisis pola pengisian (waktu & lokasi)
-- Rekonsiliasi dengan submission/pengajuan dana
+MIT License
 
-```
+## 👥 Kontributor
 
-```
-
-```
-
-```
+- Tim Pengembang SIBEDA

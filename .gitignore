@@ -9,7 +9,7 @@ __pycache__/
 
 # Env files / secrets
 .env
-.env.*
+!.env.example
 
 # IDE / editor
 .vscode/
@@ -31,3 +31,8 @@ htmlcov/
 
 # Logs
 *.log
+
+# Uploaded files (user data)
+assets/reports/
+assets/vehicles/
+.env.example
