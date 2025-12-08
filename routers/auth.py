@@ -86,14 +86,14 @@ def login(
     dinas_name = getattr(dinas_rel, "nama", None) if dinas_rel else None
     
     dinas_obj: Dict[str, Any] | None = (
-        {"dinas_id": dinas_id, "nama": dinas_name} if dinas_id is not None else None
+        {"id": dinas_id, "nama": dinas_name} if dinas_id is not None else None
     )
 
     claims: Dict[str, Any] = {
         "sub": user.nip,           
         "id": user.id,             
         "nip": user.nip,           
-        "role": [str(role)],
+        "role": str(role),
         "nama_lengkap": user.nama_lengkap, 
         "email": user.email,       
         "no_telepon": user.no_telepon, 
@@ -196,12 +196,12 @@ def token(
         "sub": user.nip,           
         "id": user.id,             
         "nip": user.nip,           
-        "role": [str(role)],
+        "role": str(role),
         "nama_lengkap": user.nama_lengkap, 
         "email": user.email,       
         "no_telepon": user.no_telepon, 
         "dinas_id": dinas_id,
-        "dinas": {"dinas_id": dinas_id, "nama": dinas_name} if dinas_id else None,
+        "dinas": {"id": dinas_id, "nama": dinas_name} if dinas_id else None,
         "is_verified": getattr(user, "is_verified", None), 
         "lang": lang,
     }
@@ -429,12 +429,12 @@ def refresh_token(
         "sub": user.nip,           # Update: user.nip
         "id": user.id,             # Update: user.id
         "nip": user.nip,           # Update: user.nip
-        "role": [str(role)],
+        "role": str(role),
         "nama_lengkap": user.nama_lengkap, # Update: user.nama_lengkap
         "email": user.email,       # Update: user.email
         "no_telepon": user.no_telepon, # Update: user.no_telepon
         "dinas_id": dinas_id,
-        "dinas": {"dinas_id": dinas_id, "nama": dinas_name} if dinas_id else None,
+        "dinas": {"id": dinas_id, "nama": dinas_name} if dinas_id else None,
         "is_verified": getattr(user, "is_verified", None), # Update: is_verified
         "lang": lang,
     }

@@ -31,6 +31,7 @@ router = APIRouter(prefix="/report", tags=["Report"])
 def list_reports(
     user_id: int | None = None,
     vehicle_id: int | None = None,
+    status: str | None = Query(None),
     dinas_id: int | None = Query(None, description="Filter by Dinas ID"),
     month: int | None = Query(None, ge=1, le=12),
     year: int | None = Query(None, ge=2000, le=2100),
@@ -41,7 +42,7 @@ def list_reports(
 ) -> schemas.SuccessResponse[schemas.PagedListData[schemas.ReportResponse]]:
     
     result = ReportService.list(
-        db, user_id, vehicle_id, month, year, dinas_id, limit, offset
+        db, user_id, vehicle_id, month, year, dinas_id, limit, offset, current_user, status
     )
     return schemas.SuccessResponse[schemas.PagedListData[schemas.ReportResponse]](
         data=result, message="Data report berhasil diambil"

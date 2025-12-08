@@ -80,23 +80,34 @@ class StatService:
             )
 
         proposal_reviewed_count = db.query(models.Submission).filter(
-            models.Submission.creator_id.in_(user_ids),
+            models.Submission.receiver_id.in_(user_ids),
             or_(
                 models.Submission.status == models.SubmissionStatusEnum.accepted,
                 models.Submission.status == models.SubmissionStatusEnum.rejected
             )
+        ).filter(
+            models.Submission.dinas_id == user_dinas_id
         ).count()
 
         report_count = db.query(models.Report).filter(
-            models.Report.user_id.in_(user_ids)
+            models.Report.user_id.in_(user_ids),
+            or_(
+                models.Report.status == models.ReportStatusEnum.accepted
+            )
+        ).filter(
+            models.Report.dinas_id == user_dinas_id
         ).count()
 
         proposal_monthly_query = db.query(
             extract('month', models.Submission.created_at).label('month'),
             func.count(models.Submission.id).label('total')
         ).filter(
-            models.Submission.creator_id.in_(user_ids),
-            extract('year', models.Submission.created_at) == current_year
+            models.Submission.receiver_id.in_(user_ids),
+            extract('year', models.Submission.created_at) == current_year,
+            models.Submission.dinas_id == user_dinas_id,
+            or_(
+                models.Submission.status == models.SubmissionStatusEnum.accepted,
+            )
         ).group_by(
             extract('month', models.Submission.created_at)
         ).all()
@@ -109,7 +120,11 @@ class StatService:
         ).filter(
             models.Report.user_id.in_(user_ids),
             models.Report.status == models.ReportStatusEnum.accepted,
-            extract('year', models.Report.timestamp) == current_year
+            extract('year', models.Report.timestamp) == current_year,
+            models.Report.dinas_id == user_dinas_id,
+            or_(
+                models.Report.status == models.ReportStatusEnum.accepted
+            )
         ).group_by(
             extract('month', models.Report.timestamp)
         ).all()
@@ -156,15 +171,20 @@ class StatService:
         ).count()
 
         proposal_made_count = db.query(models.Submission).filter(
-            models.Submission.creator_id.in_(user_ids)
+            models.Submission.receiver_id.in_(user_ids),
         ).count()
 
         proposal_monthly_query = db.query(
             extract('month', models.Submission.created_at).label('month'),
             func.count(models.Submission.id).label('total')
         ).filter(
-            models.Submission.creator_id.in_(user_ids),
-            extract('year', models.Submission.created_at) == current_year
+            models.Submission.receiver_id.in_(user_ids),
+            extract('year', models.Submission.created_at) == current_year,
+            models.Submission.dinas_id == target_dinas_id,
+            or_(
+                models.Submission.status == models.SubmissionStatusEnum.accepted,
+                models.Submission.status == models.SubmissionStatusEnum.rejected
+            )
         ).group_by(
             extract('month', models.Submission.created_at)
         ).all()
@@ -177,7 +197,11 @@ class StatService:
         ).filter(
             models.Report.user_id.in_(user_ids),
             models.Report.status == models.ReportStatusEnum.accepted,
-            extract('year', models.Report.timestamp) == current_year
+            extract('year', models.Report.timestamp) == current_year,
+            models.Report.dinas_id == target_dinas_id,
+            or_(
+                models.Report.status == models.ReportStatusEnum.accepted
+            )
         ).group_by(
             extract('month', models.Report.timestamp)
         ).all()

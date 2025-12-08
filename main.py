@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import model.models as models
@@ -38,9 +39,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="SIBEDA API", version="0.1.0", lifespan=lifespan)
 
 # Mount static files untuk serve uploaded images
-assets_path = Path("assets")
-if assets_path.exists():
-    app.mount("/assets", StaticFiles(directory="assets"), name="assets")
+# assets_path = Path("assets")
+# if assets_path.exists():
+#     app.mount("/assets", StaticFiles(directory="assets"), name="assets")
+script_dir = os.path.dirname(__file__)
+st_abs_file_path = os.path.join(script_dir, "assets")
+
+app.mount("/assets", StaticFiles(directory=st_abs_file_path), name="assets")
 
 # Register middleware
 app.add_middleware(LanguagePrefixMiddleware)

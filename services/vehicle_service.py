@@ -16,13 +16,21 @@ class VehicleService:
         )
 
     @staticmethod
-    def list(db: Session, limit: int = 10, offset: int = 0) -> Dict[str, Any]:
+    def list(db: Session, limit: int = 10, offset: int = 0, dinas_id: int | None = None) -> Dict[str, Any]:
         q = VehicleService._get_base_query(db)
+
+        if dinas_id is not None:
+            q = q.filter(models.Vehicle.dinas_id == dinas_id)
         total_records = q.count()
+        total_amounted = 0.0
+        total_accepted = q.filter(models.Vehicle.status == models.VehicleStatusEnum.active).count()
+        total_pending = 0.0
+        total_rejected = q.filter(models.Vehicle.status == models.VehicleStatusEnum.nonactive).count()
+    
         data = q.offset(offset).limit(limit).all()
         has_more = (offset + len(data)) < total_records
         
-        stat_dict = {"total_data": total_records}
+        stat_dict = {"total_data": total_records, "total_accepted": total_accepted, "total_pending": total_pending, "total_rejected": total_rejected, "total_amounted": total_amounted}
         stats_result = db.query(models.Vehicle.status, func.count(models.Vehicle.id)).group_by(models.Vehicle.status).all()
         
         for s in models.VehicleStatusEnum:
@@ -232,7 +240,16 @@ class VehicleService:
         db.commit()
     
     @staticmethod
-    def get_my_vehicles(db: Session, user_id: int) -> List[Dict[str, Any]]:
+    def get_my_vehicles(db: Session, user_id: int, limit: int = 10, offset: int = 0) -> Dict[str, Any]:
+        # Get total count first
+        total_records = db.query(models.Vehicle).join(
+            models.user_vehicle_association,
+            models.user_vehicle_association.c.vehicle_id == models.Vehicle.id
+        ).filter(
+            models.user_vehicle_association.c.user_id == user_id
+        ).count()
+
+        # Get paginated vehicles
         vehicles = db.query(models.Vehicle).join(
             models.user_vehicle_association,
             models.user_vehicle_association.c.vehicle_id == models.Vehicle.id
@@ -241,57 +258,70 @@ class VehicleService:
         ).options(
             joinedload(models.Vehicle.vehicle_type),
             joinedload(models.Vehicle.dinas)
-        ).all()
+        ).offset(offset).limit(limit).all()
 
         result = []
         for v in vehicles:
             submission_count = db.query(func.count(models.Submission.id)).filter(
                 (models.Submission.creator_id == user_id) | (models.Submission.receiver_id == user_id)
             ).scalar() or 0
-            
+
             report_count = db.query(func.count(models.Report.id)).filter(
                 models.Report.vehicle_id == v.id, models.Report.user_id == user_id
             ).scalar() or 0
-            
+
             latest_report = db.query(models.Report).filter(
                 models.Report.vehicle_id == v.id, models.Report.user_id == user_id
             ).order_by(models.Report.timestamp.desc()).first()
-            
+
             total_fuel = db.query(func.sum(models.Report.amount_liter)).filter(
                 models.Report.vehicle_id == v.id, models.Report.user_id == user_id
             ).scalar() or 0
-            
+
             total_rupiah = db.query(func.sum(models.Report.amount_rupiah)).filter(
                 models.Report.vehicle_id == v.id, models.Report.user_id == user_id
             ).scalar() or 0
-            
+
             vehicle_detail = {
-                "id": v.id, 
-                "nama": v.nama, 
-                "plat": v.plat, 
-                "merek": v.merek, 
+                "id": v.id,
+                "nama": v.nama,
+                "plat": v.plat,
+                "merek": v.merek,
                 "kapasitas_mesin": v.kapasitas_mesin,
-                "jenis_bensin": v.jenis_bensin, 
-                "odometer": v.odometer, 
-                "status": v.status, 
-                "foto_fisik": v.foto_fisik, 
-                "asset_icon_name": v.asset_icon_name, 
+                "jenis_bensin": v.jenis_bensin,
+                "odometer": v.odometer,
+                "status": v.status,
+                "foto_fisik": v.foto_fisik,
+                "asset_icon_name": v.asset_icon_name,
                 "asset_icon_color": v.asset_icon_color,
-                "tipe_transmisi": v.tipe_transmisi, 
-                "total_fuel_bar": v.total_fuel_bar, 
+                "tipe_transmisi": v.tipe_transmisi,
+                "total_fuel_bar": v.total_fuel_bar,
                 "current_fuel_bar": v.current_fuel_bar,
                 "vehicle_type": v.vehicle_type,
                 "dinas": v.dinas,
                 "dinas_id": v.dinas_id,
-                "total_submissions": submission_count, 
+                "total_submissions": submission_count,
                 "total_reports": report_count,
-                "total_fuel_liters": float(total_fuel), 
+                "total_fuel_liters": float(total_fuel),
                 "total_rupiah_spent": float(total_rupiah),
                 "last_refuel_date": latest_report.timestamp if latest_report else None,
             }
             result.append(vehicle_detail)
-        
-        return result
+
+        has_more = (offset + len(result)) < total_records
+        total_accepted = 0
+        total_pending = 0
+        total_rejected = 0
+        total_amounted = 0.0
+        return {
+            "list": result,
+            "limit": limit,
+            "offset": offset,
+            "has_more": has_more,
+            "month": None,
+            "year": None,
+            "stat": {"total_data": total_records, "total_accepted": total_accepted, "total_pending": total_pending, "total_rejected": total_rejected, "total_amounted": total_amounted}
+        }
 
     @staticmethod
     def get_vehicle_detail(db: Session, vehicle_id: int, user_id: int) -> Dict[str, Any]:

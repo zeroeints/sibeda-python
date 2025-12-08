@@ -23,11 +23,12 @@ router = APIRouter(prefix="/vehicle", tags=["Vehicle"])
 def list_vehicles(
     limit: int = Query(10, ge=1, le=1000),
     offset: int = Query(0, ge=0),
+    dinas_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.PagedListData[schemas.VehicleResponse]]:
     
-    result = VehicleService.list(db, limit, offset)
+    result = VehicleService.list(db, limit, offset, dinas_id)
     return schemas.SuccessResponse[schemas.PagedListData[schemas.VehicleResponse]](
         data=result, message="Success"
     )
@@ -201,15 +202,17 @@ def delete_vehicle(
 
 @router.get(
     "/my/vehicles",
-    response_model=schemas.SuccessResponse[List[schemas.MyVehicleResponse]],
+    response_model=schemas.SuccessResponse[schemas.PagedListData[schemas.MyVehicleResponse]],
 )
 def get_my_vehicles(
+    limit: int = Query(10, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ):
-    vehicles = VehicleService.get_my_vehicles(db, current_user.id)
-    return schemas.SuccessResponse[List[schemas.MyVehicleResponse]](
-        data=vehicles, message=f"Ditemukan {len(vehicles)} kendaraan milik anda"
+    vehicles = VehicleService.get_my_vehicles(db, current_user.id, limit, offset)
+    return schemas.SuccessResponse[schemas.PagedListData[schemas.MyVehicleResponse]](
+        data=vehicles, message=f"Ditemukan {vehicles['stat']['total_data']} kendaraan milik anda"
     )
 
 

@@ -60,7 +60,7 @@ class PagedListData(BaseModel, Generic[T]):
     has_more: bool
     month: int | None = None
     year: int | None = None
-    stat: Dict[str, int] = Field(default_factory=dict)
+    stat: Dict[str, int | float | None] = Field(default_factory=dict)
 
 class SuccessListResponse(SuccessResponse[List[T]], Generic[T]):
     pass
@@ -104,13 +104,14 @@ class VehicleSimpleResponse(BaseModel):
     nama: str
     plat: str
     status: VehicleStatusEnum
-    
+
     # Nested Relationships
     vehicle_type: VehicleTypeResponse | None = None
-    
+
     asset_icon_name: str | None = None
     asset_icon_color: str | None = None
-    
+    merek: str | None = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -261,6 +262,7 @@ class WalletResponse(BaseModel):
     user: UserSimpleResponse
     wallet_type: WalletTypeResponse
     saldo: float
+    created_at: DateTimeUTC | None = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -385,21 +387,22 @@ class SubmissionUpdate(BaseModel):
 class SubmissionResponse(BaseModel):
     id: int
     kode_unik: str
-    
+
     # Relations
     creator: UserSimpleResponse
     receiver: UserSimpleResponse
     dinas: DinasSimpleResponse | None = None
-    
+    vehicles: List[VehicleSimpleResponse] = Field(default_factory=list)
+
     description: str | None = None
     date: DateTimeUTC | None = None
-    
+
     total_cash_advance: float
     status: SubmissionStatusEnum
     created_at: DateTimeUTC
-    
+
     logs: List[SubmissionLogResponse] = Field(default_factory=list)
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 class SubmissionSummary(BaseModel):

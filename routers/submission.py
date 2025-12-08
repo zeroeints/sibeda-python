@@ -33,7 +33,7 @@ def list_submissions(
 ) -> schemas.SuccessResponse[schemas.PagedListData[schemas.SubmissionResponse]]:
     
     result = SubmissionService.list(
-        db, creator_id, receiver_id, status, month, year, dinas_id, limit, offset
+        db, creator_id, receiver_id, status, month, year, dinas_id, limit, offset, current_user
     )
     return schemas.SuccessResponse[schemas.PagedListData[schemas.SubmissionResponse]](
         data=result, message="Data pengajuan berhasil diambil"

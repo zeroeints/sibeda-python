@@ -99,6 +99,24 @@ def update_user(
 
 
 @router.patch(
+    "",
+    response_model=schemas.SuccessResponse[schemas.UserResponse],
+    summary="Patch User",
+    description="Mengubah data pengguna sendiri."
+)
+def patch_user_my(
+    user_update: schemas.UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user),
+) -> schemas.SuccessResponse[schemas.UserResponse]:
+    updated_user = UserService.update(db, current_user.id, user_update)
+    return schemas.SuccessResponse[schemas.UserResponse](
+        data=updated_user, message=get_message("update_success", None)
+    )
+
+
+
+@router.patch(
     "/{user_id}",
     response_model=schemas.SuccessResponse[schemas.UserResponse],
     summary="Patch User",

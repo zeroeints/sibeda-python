@@ -16,15 +16,15 @@ router = APIRouter(prefix="/wallet", tags=["Wallet"])
 
 @router.get(
     "/type",
-    response_model=schemas.SuccessResponse[schemas.WalletTypeResponse],
+    response_model=schemas.SuccessListResponse[schemas.WalletTypeResponse],
     summary="List Wallet Types",
 )
 def list_wallet_types(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
-) -> schemas.SuccessResponse[schemas.WalletTypeResponse]:
+) -> schemas.SuccessListResponse[schemas.WalletTypeResponse]:
     data = WalletTypeService.list(db)
-    return schemas.SuccessResponse[schemas.WalletTypeResponse](
+    return schemas.SuccessListResponse[schemas.WalletTypeResponse](
         data=data, message=get_message("create_success", None)
     )
 
@@ -57,6 +57,22 @@ def list_wallets(
     data = WalletService.list(db)
     return schemas.SuccessListResponse[schemas.WalletResponse](
         data=data, message=get_message("create_success", None)
+    )
+
+@router.get(
+    "/my",
+    response_model=schemas.SuccessResponse[schemas.WalletResponse],
+    summary="Get My Wallet via access token",
+)
+def get__my_wallet(
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(auth.get_current_user),
+) -> schemas.SuccessResponse[schemas.WalletResponse]:
+    w = WalletService.get_by_user(db, current_user.id)
+    if not w:
+        raise HTTPException(status_code=404, detail="Wallet user tidak ditemukan")
+    return schemas.SuccessResponse[schemas.WalletResponse](
+        data=w, message=get_message("create_success", None)
     )
 
 
@@ -94,7 +110,6 @@ def get_wallet_by_user(
     return schemas.SuccessResponse[schemas.WalletResponse](
         data=w, message=get_message("create_success", None)
     )
-
 
 @router.post(
     "",

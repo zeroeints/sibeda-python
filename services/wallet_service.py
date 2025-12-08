@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Optional, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
 import model.models as models
 from schemas.schemas import WalletCreate, WalletUpdate
@@ -12,7 +12,7 @@ class WalletService:
 
     @staticmethod
     def get(db: Session, wallet_id: int) -> Optional[models.Wallet]:
-        return db.query(models.Wallet).filter(models.Wallet.id == wallet_id).first()
+        return db.query(models.Wallet).options(joinedload(models.Wallet.user)).filter(models.Wallet.id == wallet_id).first()
 
     @staticmethod
     def get_by_user(db: Session, user_id: int) -> Optional[models.Wallet]:

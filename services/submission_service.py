@@ -5,13 +5,14 @@ from sqlalchemy import extract, func
 from fastapi import HTTPException
 import model.models as models
 import schemas.schemas as schemas
+from pydantic import BaseModel
 
 class SubmissionService:
     @staticmethod
     def _get_base_query(db: Session):
         return db.query(models.Submission).options(
             joinedload(models.Submission.creator),
-            joinedload(models.Submission.receiver),
+            joinedload(models.Submission.receiver).joinedload(models.User.vehicles).joinedload(models.Vehicle.vehicle_type),
             joinedload(models.Submission.dinas),
             joinedload(models.Submission.logs).joinedload(models.SubmissionLog.updater)
         )
@@ -26,7 +27,8 @@ class SubmissionService:
         year: int | None = None,
         dinas_id: int | None = None,
         limit: int = 10,
-        offset: int = 0
+        offset: int = 0,
+        current_user: models.User | None = None
     ) -> Dict[str, Any]:
         
         q = SubmissionService._get_base_query(db)
@@ -38,8 +40,12 @@ class SubmissionService:
         if year: q = q.filter(extract('year', models.Submission.created_at) == year)
         if dinas_id: q = q.filter(models.Submission.dinas_id == dinas_id)
         
-        q = q.order_by(models.Submission.created_at.desc())
+        q = q.order_by(models.Submission.created_at.desc()).filter(models.Submission.dinas_id == current_user.dinas_id)
         data = q.offset(offset).limit(limit).all()
+
+        # Manually attach vehicles to each submission for serialization
+        for submission in data:
+            submission.vehicles = submission.receiver.vehicles if submission.receiver else []
         
         # Count Query
         count_q = db.query(func.count(models.Submission.id))
@@ -83,7 +89,11 @@ class SubmissionService:
 
     @staticmethod
     def get(db: Session, submission_id: int) -> Optional[models.Submission]:
-        return SubmissionService._get_base_query(db).filter(models.Submission.id == submission_id).first()
+        submission = SubmissionService._get_base_query(db).filter(models.Submission.id == submission_id).first()
+        if submission:
+            # Manually attach vehicles to the submission object for serialization
+            submission.vehicles = submission.receiver.vehicles if submission.receiver else []
+        return submission
 
     @staticmethod
     def _create_log(db: Session, submission_id: int, status: str, user_id: int | None, notes: str | None):
@@ -201,12 +211,21 @@ class SubmissionService:
         
         q = q.order_by(models.Submission.created_at.desc())
         
-        total_records = db.query(func.count(models.Submission.id)).filter(models.Submission.creator_id == user_id)
+        total_records = db.query(func.count(models.Submission.id)).filter(models.Submission.receiver_id == user_id)
         if month: total_records = total_records.filter(extract('month', models.Submission.created_at) == month)
         if year: total_records = total_records.filter(extract('year', models.Submission.created_at) == year)
         total_count = total_records.scalar() or 0
+        total_amounted = q.filter(models.Submission.status == models.SubmissionStatusEnum.accepted).with_entities(func.coalesce(func.sum(models.Submission.total_cash_advance), 0.0)).scalar() or 0.0
+        total_accepted = q.filter(models.Submission.status == models.SubmissionStatusEnum.accepted).count() or 0
+        total_pending = q.filter(models.Submission.status == models.SubmissionStatusEnum.pending).count() or 0
+        total_rejected = q.filter(models.Submission.status == models.SubmissionStatusEnum.rejected).count() or 0
         
         data = q.offset(offset).limit(limit).all()
+
+        # Manually attach vehicles to each submission for serialization
+        for submission in data:
+            submission.vehicles = submission.receiver.vehicles if submission.receiver else []
+
         has_more = (offset + len(data)) < total_count
         
         return {
@@ -216,5 +235,5 @@ class SubmissionService:
             "has_more": has_more,
             "month": month,
             "year": year,
-            "stat": {"total_data": total_count}
+            "stat": {"total_data": total_count, "total_accepted": total_accepted, "total_pending": total_pending, "total_rejected": total_rejected, "total_amounted": total_amounted}
         }

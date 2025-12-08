@@ -36,12 +36,12 @@ def get_kadis_stats(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.KadisStatResponse]:
-    if not current_user.dinas:
+    if not current_user.dinas_id:
         raise HTTPException(
             status_code=400, detail="User tidak terdaftar dalam dinas manapun"
         )
 
-    data = StatService.get_kadis_stats(db, current_user.dinas.id)
+    data = StatService.get_kadis_stats(db, current_user.dinas_id)
     return schemas.SuccessResponse[schemas.KadisStatResponse](
         data=data, message="Statistik Kadis berhasil diambil"
     )
@@ -57,7 +57,7 @@ def get_admin_stats(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(auth.get_current_user),
 ) -> schemas.SuccessResponse[schemas.AdminStatResponse]:
-    target_dinas = dinas_id if dinas_id else current_user.DinasID
+    target_dinas = dinas_id if dinas_id else current_user.dinas_id
     
     if not target_dinas:
         raise HTTPException(status_code=400, detail="Harap spesifikasikan dinas_id")

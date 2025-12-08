@@ -26,7 +26,9 @@ class ReportService:
         year: int | None = None,
         dinas_id: int | None = None,
         limit: int = 10,
-        offset: int = 0
+        offset: int = 0,
+        current_user: models.User | None = None,
+        status: str | None = None
     ) -> Dict[str, Any]:
         q = ReportService._get_base_query(db)
 
@@ -35,8 +37,9 @@ class ReportService:
         if month: q = q.filter(extract('month', models.Report.timestamp) == month)
         if year: q = q.filter(extract('year', models.Report.timestamp) == year)
         if dinas_id: q = q.filter(models.Report.dinas_id == dinas_id)
+        if status: q = q.filter(models.Report.status == status)
 
-        q = q.order_by(models.Report.timestamp.desc())
+        q = q.order_by(models.Report.timestamp.desc()).filter(models.Report.dinas_id == current_user.dinas_id)
         data = q.offset(offset).limit(limit).all()
 
         count_q = db.query(func.count(models.Report.id))
@@ -45,16 +48,18 @@ class ReportService:
         if month: count_q = count_q.filter(extract('month', models.Report.timestamp) == month)
         if year: count_q = count_q.filter(extract('year', models.Report.timestamp) == year)
         if dinas_id: count_q = count_q.filter(models.Report.dinas_id == dinas_id)
+        if status: count_q = count_q.filter(models.Report.status == status)
         
         total_records = count_q.scalar() or 0
         has_more = (offset + len(data)) < total_records
 
-        stat_q = db.query(models.Report.status, func.count(models.Report.id))
+        stat_q = db.query(models.Report.status, func.count(models.Report.id)).filter(models.Report.dinas_id == current_user.dinas_id)
         if user_id: stat_q = stat_q.filter(models.Report.user_id == user_id)
         if vehicle_id: stat_q = stat_q.filter(models.Report.vehicle_id == vehicle_id)
         if month: stat_q = stat_q.filter(extract('month', models.Report.timestamp) == month)
         if year: stat_q = stat_q.filter(extract('year', models.Report.timestamp) == year)
         if dinas_id: stat_q = stat_q.filter(models.Report.dinas_id == dinas_id)
+        if status: stat_q = stat_q.filter(models.Report.status == status)
         
         stats_result = stat_q.group_by(models.Report.status).all()
         
@@ -65,6 +70,16 @@ class ReportService:
         for status_enum, count in stats_result:
             key = f"total_{status_enum.value.lower()}"
             stat_dict[key] = count
+
+        stat_dict["total_amounted"] = db.query(func.coalesce(func.sum(models.Report.amount_rupiah), 0.0)).filter(
+            True if not user_id else models.Report.user_id == user_id,
+            True if not vehicle_id else models.Report.vehicle_id == vehicle_id,
+            True if not month else extract('month', models.Report.timestamp) == month,
+            True if not year else extract('year', models.Report.timestamp) == year,
+            True if not dinas_id else models.Report.dinas_id == dinas_id,
+            True if not status else models.Report.status == status,
+            models.Report.status == models.ReportStatusEnum.accepted
+        ).scalar() or 0.0
 
         return {
             "list": data,
@@ -108,6 +123,11 @@ class ReportService:
         if year: q = q.filter(extract('year', models.Report.timestamp) == year)
         
         total_records = q.count()
+        total_amounted = q.filter(models.Report.status == models.ReportStatusEnum.accepted).with_entities(func.coalesce(func.sum(models.Report.amount_rupiah), 0.0)).scalar() or 0.0
+        total_accepted = q.filter(models.Report.status == models.ReportStatusEnum.accepted).count() or 0
+        total_pending = q.filter(models.Report.status == models.ReportStatusEnum.pending).count() or 0
+        total_rejected = q.filter(models.Report.status == models.ReportStatusEnum.rejected).count() or 0
+
         
         q = q.order_by(models.Report.timestamp.desc())
         raw_results = q.offset(offset).limit(limit).all()
@@ -147,7 +167,7 @@ class ReportService:
             "has_more": has_more,
             "month": month,
             "year": year,
-            "stat": {"total_data": total_records}
+            "stat": {"total_data": total_records, "total_accepted": total_accepted, "total_pending": total_pending, "total_rejected": total_rejected, "total_amounted": total_amounted}
         }
 
     @staticmethod
