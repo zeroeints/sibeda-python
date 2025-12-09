@@ -124,7 +124,7 @@ def scan_qr_code(
 
     qr_record = (
         db.query(models.UniqueCodeGenerator)
-        .filter(models.UniqueCodeGenerator.KodeUnik == raw_code)
+        .filter(models.UniqueCodeGenerator.kode_unik == raw_code)
         .first()
     )
 

@@ -48,7 +48,7 @@ def encode_qr_token(user: 'User', code: str) -> str:
     Format: base64url(payload).base64url(signature)
     payload: {"uid": int, "code": str, "ts": epoch_sec}
     """
-    uid_val = getattr(user, "ID", None)
+    uid_val = getattr(user, "id", None)
     payload: dict[str, int | str] = {
         "uid": int(uid_val) if uid_val is not None else 0,
         "code": str(code),
@@ -90,14 +90,14 @@ def extract_kode_unik_from_qr(qr_input: str) -> str:
 
 def create_password_reset_code(db: Session, user: 'User') -> 'UniqueCodeGenerator':
     db.query(models.UniqueCodeGenerator).filter(
-        models.UniqueCodeGenerator.UserID == user.ID,
-        models.UniqueCodeGenerator.Purpose == PurposeEnum.password_reset
+        models.UniqueCodeGenerator.user_id == user.id,
+        models.UniqueCodeGenerator.purpose == PurposeEnum.password_reset
     ).delete()
     otp = generate_otp()
     rec = models.UniqueCodeGenerator(
-        UserID=user.ID,
-        KodeUnik=otp,
-        Purpose=PurposeEnum.password_reset,
+        user_id=user.id,
+        kode_unik=otp,
+        purpose=PurposeEnum.password_reset,
         expired_at=_utc_now() + timedelta(minutes=OTP_EXP_MINUTES),
     )
     db.add(rec)
@@ -107,9 +107,9 @@ def create_password_reset_code(db: Session, user: 'User') -> 'UniqueCodeGenerato
 
 def verify_password_reset_code(db: Session, user: 'User', otp: str):
     rec = db.query(models.UniqueCodeGenerator).filter(
-        models.UniqueCodeGenerator.UserID == user.ID,
-        models.UniqueCodeGenerator.Purpose == PurposeEnum.password_reset,
-        models.UniqueCodeGenerator.KodeUnik == otp,
+        models.UniqueCodeGenerator.user_id == user.id,
+        models.UniqueCodeGenerator.purpose == PurposeEnum.password_reset,
+        models.UniqueCodeGenerator.kode_unik == otp,
     ).first()
     if not rec:
         return False, "invalid"
@@ -125,22 +125,22 @@ def verify_password_reset_code(db: Session, user: 'User', otp: str):
 
 def consume_password_reset_code(db: Session, user: 'User', otp: str):
     db.query(models.UniqueCodeGenerator).filter(
-        models.UniqueCodeGenerator.UserID == user.ID,
-        models.UniqueCodeGenerator.Purpose == PurposeEnum.password_reset,
-        models.UniqueCodeGenerator.KodeUnik == otp,
+        models.UniqueCodeGenerator.user_id == user.id,
+        models.UniqueCodeGenerator.purpose == PurposeEnum.password_reset,
+        models.UniqueCodeGenerator.kode_unik == otp,
     ).delete()
     db.commit()
 
 def create_account_verification_code(db: Session, user: 'User') -> 'UniqueCodeGenerator':
     db.query(models.UniqueCodeGenerator).filter(
-        models.UniqueCodeGenerator.UserID == user.ID,
-        models.UniqueCodeGenerator.Purpose == PurposeEnum.register
+        models.UniqueCodeGenerator.user_id == user.id,
+        models.UniqueCodeGenerator.purpose == PurposeEnum.register
     ).delete()
     otp = generate_otp()
     rec = models.UniqueCodeGenerator(
-        UserID=user.ID,
-        KodeUnik=otp,
-        Purpose=PurposeEnum.register,
+        user_id=user.id,
+        kode_unik=otp,
+        purpose=PurposeEnum.register,
         expired_at=_utc_now() + timedelta(minutes=OTP_EXP_MINUTES),
     )
     db.add(rec)
@@ -150,9 +150,9 @@ def create_account_verification_code(db: Session, user: 'User') -> 'UniqueCodeGe
 
 def verify_account_verification_code(db: Session, user: 'User', otp: str):
     rec = db.query(models.UniqueCodeGenerator).filter(
-        models.UniqueCodeGenerator.UserID == user.ID,
-        models.UniqueCodeGenerator.Purpose == PurposeEnum.register,
-        models.UniqueCodeGenerator.KodeUnik == otp,
+        models.UniqueCodeGenerator.user_id == user.id,
+        models.UniqueCodeGenerator.purpose == PurposeEnum.register,
+        models.UniqueCodeGenerator.kode_unik == otp,
     ).first()
     if not rec:
         return False, "invalid"
@@ -167,9 +167,9 @@ def verify_account_verification_code(db: Session, user: 'User', otp: str):
 
 def consume_account_verification_code(db: Session, user: 'User', otp: str):
     db.query(models.UniqueCodeGenerator).filter(
-        models.UniqueCodeGenerator.UserID == user.ID,
-        models.UniqueCodeGenerator.Purpose == PurposeEnum.register,
-        models.UniqueCodeGenerator.KodeUnik == otp,
+        models.UniqueCodeGenerator.user_id == user.id,
+        models.UniqueCodeGenerator.purpose == PurposeEnum.register,
+        models.UniqueCodeGenerator.kode_unik == otp,
     ).delete()
     db.commit()
 
@@ -199,9 +199,9 @@ def get_or_create_qr_code(db: Session, user: 'User') -> 'UniqueCodeGenerator':
 
 def verify_qr_code(db: Session, user: 'User', code: str):
     rec = db.query(models.UniqueCodeGenerator).filter(
-        models.UniqueCodeGenerator.UserID == user.ID,
-        models.UniqueCodeGenerator.Purpose == PurposeEnum.otp,
-        models.UniqueCodeGenerator.KodeUnik == code,
+        models.UniqueCodeGenerator.user_id == user.id,
+        models.UniqueCodeGenerator.purpose == PurposeEnum.otp,
+        models.UniqueCodeGenerator.kode_unik == code,
     ).first()
     if not rec:
         return False, "invalid"
@@ -214,8 +214,8 @@ def verify_qr_code(db: Session, user: 'User', code: str):
 
 def consume_qr_code(db: Session, user: 'User', code: str) -> None:
     db.query(models.UniqueCodeGenerator).filter(
-        models.UniqueCodeGenerator.UserID == user.ID,
-        models.UniqueCodeGenerator.Purpose == PurposeEnum.otp,
-        models.UniqueCodeGenerator.KodeUnik == code,
+        models.UniqueCodeGenerator.user_id == user.id,
+        models.UniqueCodeGenerator.purpose == PurposeEnum.otp,
+        models.UniqueCodeGenerator.kode_unik == code,
     ).delete()
     db.commit()
