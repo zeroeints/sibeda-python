@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional, Dict, Any
+from services.wallet_service import WalletService
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import extract, func
 from fastapi import HTTPException
@@ -141,6 +142,10 @@ class SubmissionService:
         old_status = s.status.value
         new_status = payload.status.value if payload.status else old_status
         if payload.status is not None: s.status = payload.status.value
+
+        if payload.status is not None and new_status == models.SubmissionStatusEnum.accepted.value:
+            if old_status != models.SubmissionStatusEnum.accepted.value:
+                WalletService.add_balance(db, user_id=s.receiver_id, amount=s.total_cash_advance)
         
         if old_status != new_status:
             SubmissionService._create_log(db, s.id, new_status, user_id, f"Status berubah dari {old_status} ke {new_status}")

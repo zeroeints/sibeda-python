@@ -71,3 +71,29 @@ class WalletService:
             raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
         db.delete(wallet)
         db.commit()
+
+    @staticmethod
+    def add_balance(db: Session, user_id: int, amount: float | int):
+        wallet = db.query(models.Wallet).filter(models.Wallet.user_id == user_id).first()
+        
+        if not wallet:
+            raise HTTPException(status_code=404, detail=f"Wallet untuk User ID {user_id} tidak ditemukan")
+
+        current_balance = float(wallet.balance) if wallet.balance else 0.0
+        wallet.balance = current_balance + float(amount)
+        
+        db.add(wallet)
+        db.flush()
+
+    @staticmethod
+    def deduct_balance(db: Session, user_id: int, amount: float | int):
+        wallet = db.query(models.Wallet).filter(models.Wallet.user_id == user_id).first()
+        
+        if not wallet:
+            raise HTTPException(status_code=404, detail=f"Wallet untuk User ID {user_id} tidak ditemukan")
+
+        current_balance = float(wallet.balance) if wallet.balance else 0.0
+        wallet.balance = current_balance - float(amount)
+        
+        db.add(wallet)
+        db.flush()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional, Dict, Any
+from services.wallet_service import WalletService
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import extract, func
 from fastapi import HTTPException, UploadFile
@@ -310,10 +311,18 @@ class ReportService:
     def update_status(db: Session, report_id: int, new_status: str, updated_by_user_id: int, notes: str | None) -> models.Report:
         r = db.query(models.Report).filter(models.Report.id == report_id).first()
         if not r: raise HTTPException(404, "Report not found")
-        # Convert string to enum
+
+        old_status = r.status
         status_enum = models.ReportStatusEnum(new_status)
+
+        if status_enum == models.ReportStatusEnum.accepted and old_status != models.ReportStatusEnum.accepted:
+            amount = float(r.amount_rupiah) if r.amount_rupiah else 0.0
+            
+            WalletService.deduct_balance(db, user_id=r.user_id, amount=amount)
+
         r.status = status_enum
         ReportService._create_report_log(db, r.id, status_enum, updated_by_user_id, notes)
+        
         db.commit()
         return ReportService.get(db, r.id) # type: ignore
 
